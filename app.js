@@ -1082,8 +1082,6 @@ function applyBulkChanges() {
 
   els.bulkCategory.value = "";
   uiState.editingExpenseId = "";
-  uiState.selectedExpenseIds.clear();
-  uiState.bulkPanelOpen = false;
   render();
 }
 
@@ -2029,7 +2027,7 @@ function exportSettlementImage() {
   const expenses = getSortedExpenses();
   const width = 1080;
   const rowHeight = 88;
-  const expenseRowHeight = 86;
+  const expenseRowHeight = 108;
   const headerTop = 150;
   const startY = 298;
   const settlementCardHeight = 230 + state.people.length * rowHeight;
@@ -2083,17 +2081,17 @@ function exportSettlementImage() {
       const included = expense.included !== false;
       const category = categoryLabel(expense.category);
       const detail = [`${expense.payer} 결제`, splitLabel(expense), category, included ? "" : "정산 제외"].filter(Boolean).join(" · ");
-      roundRect(ctx, 96, y - 28, width - 192, 68, 12, included ? "#ffffff" : "#f8fafb", "#dce3e8", 1);
-      roundRect(ctx, 124, y - 12, 62, 28, 8, dateColor(expense.date));
-      drawText(ctx, formatShortDate(expense.date), 136, y + 8, 18, 900, "#ffffff");
-      drawText(ctx, truncateText(ctx, expense.title, 510), 208, y - 2, 25, 900, included ? "#17202a" : "#9aa5af");
-      drawText(ctx, detail, 208, y + 27, 17, 700, included ? "#65717d" : "#9aa5af");
+      roundRect(ctx, 86, y - 34, width - 172, 86, 14, included ? "#ffffff" : "#f8fafb", "#dce3e8", 1);
+      roundRect(ctx, 114, y - 10, 72, 34, 9, dateColor(expense.date));
+      drawText(ctx, formatShortDate(expense.date), 128, y + 14, 22, 900, "#ffffff");
+      drawText(ctx, truncateText(ctx, expense.title, 500), 210, y, 31, 900, included ? "#17202a" : "#9aa5af");
+      drawText(ctx, detail, 210, y + 35, 20, 750, included ? "#65717d" : "#9aa5af");
       const money = formatExpenseMoneyParts(expense);
       if (money.converted) {
-        drawRightText(ctx, money.original, 944, y - 4, 22, 900, included ? "#2f6df6" : "#9aa5af");
-        drawRightText(ctx, money.converted, 944, y + 26, 19, 900, included ? "#0f8a61" : "#9aa5af");
+        drawRightText(ctx, money.original, 950, y + 1, 27, 900, included ? "#2f6df6" : "#9aa5af");
+        drawRightText(ctx, money.converted, 950, y + 35, 23, 900, included ? "#0f8a61" : "#9aa5af");
       } else {
-        drawRightText(ctx, money.original, 944, y + 8, 22, 900, included ? "#17202a" : "#9aa5af");
+        drawRightText(ctx, money.original, 950, y + 18, 29, 900, included ? "#17202a" : "#9aa5af");
       }
     });
   }
@@ -2255,10 +2253,8 @@ function bindEvents() {
     });
     els.expenseForm.reset();
     els.expenseCurrency.value = state.settlementCurrency;
-    uiState.manualFormOpen = false;
     setToday();
     renderPayers();
-    renderManualFormControls();
   });
   els.expenseSortKey.addEventListener("change", () => {
     uiState.expenseSortKey = els.expenseSortKey.value;
