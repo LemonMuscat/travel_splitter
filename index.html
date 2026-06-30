@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>정산 링크</title>
-    <link rel="stylesheet" href="./styles.css?v=49" />
+    <link rel="stylesheet" href="./styles.css?v=50" />
   </head>
   <body>
     <div class="app-shell" data-active-tab="expenses">
@@ -23,57 +23,60 @@
       </header>
 
       <main class="workspace">
-        <section class="summary-panel">
-          <div class="trip-manager">
-            <label for="tripSelect">정산 선택</label>
-            <select id="tripSelect"></select>
-            <div class="trip-actions" aria-label="정산 관리">
-              <button id="newTripButton" type="button">새 정산</button>
-              <button id="duplicateTripButton" type="button">복제</button>
-              <button id="deleteTripButton" type="button">정산 삭제</button>
+        <section class="summary-panel" id="summaryPanel">
+          <button class="settings-toggle-button" id="settingsToggleButton" type="button" aria-expanded="false" aria-controls="summaryPanelBody">정산 설정 열기</button>
+          <div class="summary-panel-body" id="summaryPanelBody">
+            <div class="trip-manager">
+              <label for="tripSelect">정산 선택</label>
+              <select id="tripSelect"></select>
+              <div class="trip-actions" aria-label="정산 관리">
+                <button id="newTripButton" type="button">새 정산</button>
+                <button id="duplicateTripButton" type="button">복제</button>
+                <button id="deleteTripButton" type="button">정산 삭제</button>
+              </div>
             </div>
-          </div>
 
-          <div class="trip-card">
-            <label for="tripName">정산 이름</label>
-            <input id="tripName" type="text" autocomplete="off" />
-            <input id="tripDate" type="hidden" />
-            <div class="trip-meta">
-              <div>
-                <label for="tripStartDate">시작일</label>
-                <input id="tripStartDate" type="date" />
-              </div>
-              <div>
-                <label for="tripEndDate">종료일</label>
-                <input id="tripEndDate" type="date" />
-              </div>
-              <div>
-                <label for="settlementCurrency">정산 기준 통화</label>
-                <select id="settlementCurrency">
-                  <option value="KRW">KRW</option>
-                  <option value="JPY">JPY</option>
-                  <option value="USD">USD</option>
-                  <option value="THB">THB</option>
-                  <option value="VND">VND</option>
-                  <option value="CNY">CNY</option>
-                  <option value="EUR">EUR</option>
-                </select>
+            <div class="trip-card">
+              <label for="tripName">정산 이름</label>
+              <input id="tripName" type="text" autocomplete="off" />
+              <input id="tripDate" type="hidden" />
+              <div class="trip-meta">
+                <div>
+                  <label for="tripStartDate">시작일</label>
+                  <input id="tripStartDate" type="date" />
+                </div>
+                <div>
+                  <label for="tripEndDate">종료일</label>
+                  <input id="tripEndDate" type="date" />
+                </div>
+                <div>
+                  <label for="settlementCurrency">정산 기준 통화</label>
+                  <select id="settlementCurrency">
+                    <option value="KRW">KRW</option>
+                    <option value="JPY">JPY</option>
+                    <option value="USD">USD</option>
+                    <option value="THB">THB</option>
+                    <option value="VND">VND</option>
+                    <option value="CNY">CNY</option>
+                    <option value="EUR">EUR</option>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="metric-grid">
-            <div class="metric">
-              <span>총 지출</span>
-              <strong id="totalSpend">0원</strong>
-            </div>
-            <div class="metric">
-              <span>1인 예상</span>
-              <strong id="perPerson">0원</strong>
-            </div>
-            <div class="metric">
-              <span>정산 건수</span>
-              <strong id="settlementCount">0건</strong>
+            <div class="metric-grid">
+              <div class="metric">
+                <span>총 지출</span>
+                <strong id="totalSpend">0원</strong>
+              </div>
+              <div class="metric">
+                <span>1인 예상</span>
+                <strong id="perPerson">0원</strong>
+              </div>
+              <div class="metric">
+                <span>정산 건수</span>
+                <strong id="settlementCount">0건</strong>
+              </div>
             </div>
           </div>
 
@@ -122,10 +125,11 @@
                   <button id="expenseSortDirection" type="button" title="정렬 방향" aria-label="정렬 방향">↓</button>
                 </div>
                 <button class="bulk-toggle-button" id="bulkToggleButton" type="button" aria-expanded="false" aria-controls="bulkPanel">일괄 수정</button>
+                <button class="manual-toggle-button" id="manualToggleButton" type="button" aria-expanded="false" aria-controls="expenseForm">수동 입력</button>
               </div>
             </div>
             <div class="expense-table" id="expenseList"></div>
-            <div class="bulk-panel" id="bulkPanel">
+            <div class="bulk-panel" id="bulkPanel" hidden>
               <div class="bulk-head">
                 <strong id="bulkSelectionCount">0건 선택</strong>
                 <div>
@@ -152,7 +156,7 @@
                 <button class="primary-button" id="applyBulkButton" type="button">선택 항목 적용</button>
               </div>
             </div>
-            <form class="expense-form" id="expenseForm">
+            <form class="expense-form" id="expenseForm" hidden>
               <input id="expenseTitle" type="text" placeholder="결제 내용" required />
               <input id="expenseAmount" type="number" inputmode="numeric" min="0" step="1" placeholder="금액" required />
               <select id="expenseCurrency" aria-label="결제 통화">
@@ -305,6 +309,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=49"></script>
+    <script src="./app.js?v=50"></script>
   </body>
 </html>

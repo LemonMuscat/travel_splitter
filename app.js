@@ -22,6 +22,8 @@ const uiState = {
   editingExpenseId: "",
   selectedExpenseIds: new Set(),
   bulkPanelOpen: false,
+  manualFormOpen: false,
+  settingsPanelOpen: false,
 };
 
 let state = createTrip("새 정산", []);
@@ -51,9 +53,12 @@ const els = {
   peopleList: document.querySelector("#peopleList"),
   personInput: document.querySelector("#personInput"),
   addPersonButton: document.querySelector("#addPersonButton"),
+  summaryPanel: document.querySelector("#summaryPanel"),
+  settingsToggleButton: document.querySelector("#settingsToggleButton"),
   totalSpend: document.querySelector("#totalSpend"),
   perPerson: document.querySelector("#perPerson"),
   settlementCount: document.querySelector("#settlementCount"),
+  manualToggleButton: document.querySelector("#manualToggleButton"),
   expenseForm: document.querySelector("#expenseForm"),
   expenseTitle: document.querySelector("#expenseTitle"),
   expenseAmount: document.querySelector("#expenseAmount"),
@@ -485,6 +490,8 @@ function render() {
   renderTripList();
   renderPeople();
   renderPayers();
+  renderSettingsPanelControls();
+  renderManualFormControls();
   renderExpenses();
   renderResults();
   saveState();
@@ -606,10 +613,25 @@ function updateBulkModeVisibility() {
   els.bulkShareInputs.hidden = mode !== "custom";
 }
 
+function renderManualFormControls() {
+  if (!els.manualToggleButton || !els.expenseForm) return;
+  els.manualToggleButton.textContent = uiState.manualFormOpen ? "수동 입력 닫기" : "수동 입력";
+  els.manualToggleButton.setAttribute("aria-expanded", uiState.manualFormOpen ? "true" : "false");
+  els.expenseForm.hidden = !uiState.manualFormOpen;
+}
+
+function renderSettingsPanelControls() {
+  if (!els.summaryPanel || !els.settingsToggleButton) return;
+  els.summaryPanel.classList.toggle("is-open", uiState.settingsPanelOpen);
+  els.settingsToggleButton.textContent = uiState.settingsPanelOpen ? "정산 설정 닫기" : "정산 설정 열기";
+  els.settingsToggleButton.setAttribute("aria-expanded", uiState.settingsPanelOpen ? "true" : "false");
+}
+
 function renderExpenses() {
   els.expenseList.replaceChildren();
   renderExpenseSummary();
   renderBulkControls();
+  renderManualFormControls();
   if (!state.expenses.length) {
     els.expenseList.innerHTML = '<p class="empty-state">아직 정산할 내역이 없습니다.</p>';
     return;
@@ -2233,8 +2255,10 @@ function bindEvents() {
     });
     els.expenseForm.reset();
     els.expenseCurrency.value = state.settlementCurrency;
+    uiState.manualFormOpen = false;
     setToday();
     renderPayers();
+    renderManualFormControls();
   });
   els.expenseSortKey.addEventListener("change", () => {
     uiState.expenseSortKey = els.expenseSortKey.value;
@@ -2247,6 +2271,14 @@ function bindEvents() {
   els.bulkToggleButton.addEventListener("click", () => {
     uiState.bulkPanelOpen = !uiState.bulkPanelOpen;
     renderBulkControls();
+  });
+  els.manualToggleButton.addEventListener("click", () => {
+    uiState.manualFormOpen = !uiState.manualFormOpen;
+    renderManualFormControls();
+  });
+  els.settingsToggleButton.addEventListener("click", () => {
+    uiState.settingsPanelOpen = !uiState.settingsPanelOpen;
+    renderSettingsPanelControls();
   });
   els.selectAllExpensesButton.addEventListener("click", selectAllExpenses);
   els.clearExpenseSelectionButton.addEventListener("click", clearExpenseSelection);

@@ -183,6 +183,15 @@ h2 {
   top: 16px;
 }
 
+.summary-panel-body {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-toggle-button {
+  display: none;
+}
+
 .trip-manager,
 .trip-card {
   display: grid;
@@ -425,6 +434,10 @@ textarea:focus {
   width: 100%;
 }
 
+.expense-form[hidden] {
+  display: none;
+}
+
 .expense-toolbar {
   display: flex;
   align-items: center;
@@ -452,7 +465,9 @@ textarea:focus {
   gap: 10px;
 }
 
-.bulk-toggle-button {
+.bulk-toggle-button,
+.manual-toggle-button,
+.settings-toggle-button {
   min-height: 42px;
   border-radius: 8px;
   padding: 0 16px;
@@ -462,11 +477,14 @@ textarea:focus {
   white-space: nowrap;
 }
 
-.bulk-toggle-button:hover {
+.bulk-toggle-button:hover,
+.manual-toggle-button:hover,
+.settings-toggle-button:hover {
   background: #dce8ff;
 }
 
-.bulk-toggle-button[hidden] {
+.bulk-toggle-button[hidden],
+.manual-toggle-button[hidden] {
   display: none;
 }
 
@@ -1070,6 +1088,9 @@ textarea:focus {
   place-items: center;
   border: 0;
   text-align: center;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.2;
 }
 
 .settle-actions button:not(.primary-button),
@@ -1112,7 +1133,8 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
-  .bulk-toggle-button {
+  .bulk-toggle-button,
+  .manual-toggle-button {
     width: 100%;
   }
 
@@ -1189,6 +1211,21 @@ textarea:focus {
 
   .summary-panel {
     gap: 12px;
+  }
+
+  .settings-toggle-button {
+    display: block;
+    width: 100%;
+    color: #fff;
+    background: var(--ink);
+  }
+
+  .settings-toggle-button:hover {
+    background: #2f3a46;
+  }
+
+  .summary-panel:not(.is-open) .summary-panel-body {
+    display: none;
   }
 
   .app-shell:not([data-active-tab="expenses"]) .summary-panel {
