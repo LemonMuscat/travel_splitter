@@ -1111,6 +1111,25 @@ textarea:focus {
     order: 2;
   }
 
+  .settings-toggle-button {
+    display: block;
+    width: 100%;
+    color: #fff;
+    background: var(--ink);
+  }
+
+  .settings-toggle-button:hover {
+    background: #2f3a46;
+  }
+
+  .summary-panel:not(.is-open) .summary-panel-body {
+    display: none;
+  }
+
+  .app-shell:not([data-active-tab="expenses"]) .summary-panel {
+    display: none;
+  }
+
   .content-panel {
     order: 1;
   }
@@ -1211,25 +1230,6 @@ textarea:focus {
 
   .summary-panel {
     gap: 12px;
-  }
-
-  .settings-toggle-button {
-    display: block;
-    width: 100%;
-    color: #fff;
-    background: var(--ink);
-  }
-
-  .settings-toggle-button:hover {
-    background: #2f3a46;
-  }
-
-  .summary-panel:not(.is-open) .summary-panel-body {
-    display: none;
-  }
-
-  .app-shell:not([data-active-tab="expenses"]) .summary-panel {
-    display: none;
   }
 
   .rate-box {
