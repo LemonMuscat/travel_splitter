@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>정산 링크</title>
-    <link rel="stylesheet" href="./styles.css?v=50" />
+    <link rel="stylesheet" href="./styles.css?v=52" />
   </head>
   <body>
     <div class="app-shell" data-active-tab="expenses">
@@ -139,6 +139,7 @@
               </div>
               <div class="bulk-grid">
                 <input id="bulkCategory" type="text" placeholder="태그 일괄 변경 예: 식비, 교통" />
+                <input id="bulkDate" type="date" aria-label="결제일 일괄 변경" />
                 <select id="bulkPayer" aria-label="결제자 일괄 변경">
                   <option value="">결제자 유지</option>
                 </select>
@@ -309,6 +310,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=51"></script>
+    <script src="./app.js?v=52"></script>
   </body>
 </html>

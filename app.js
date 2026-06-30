@@ -75,6 +75,7 @@ const els = {
   selectAllExpensesButton: document.querySelector("#selectAllExpensesButton"),
   clearExpenseSelectionButton: document.querySelector("#clearExpenseSelectionButton"),
   bulkCategory: document.querySelector("#bulkCategory"),
+  bulkDate: document.querySelector("#bulkDate"),
   bulkPayer: document.querySelector("#bulkPayer"),
   bulkSplitMode: document.querySelector("#bulkSplitMode"),
   bulkSplitPerson: document.querySelector("#bulkSplitPerson"),
@@ -1055,6 +1056,7 @@ function applyBulkChanges() {
   if (!uiState.selectedExpenseIds.size) return;
   const ids = new Set(uiState.selectedExpenseIds);
   const category = els.bulkCategory.value.trim();
+  const date = normalizeDateInput(els.bulkDate.value);
   const payer = els.bulkPayer.value;
   const splitMode = els.bulkSplitMode.value;
   const singlePerson = els.bulkSplitPerson.value;
@@ -1064,6 +1066,7 @@ function applyBulkChanges() {
     if (!ids.has(expense.id)) return expense;
     const patch = { ...expense };
     if (category) patch.category = normalizeCategoryInput(category);
+    if (date) patch.date = date;
     if (payer && state.people.includes(payer)) patch.payer = payer;
     if (splitMode === "equal") {
       patch.participants = [...state.people];
@@ -1081,6 +1084,7 @@ function applyBulkChanges() {
   });
 
   els.bulkCategory.value = "";
+  els.bulkDate.value = "";
   uiState.editingExpenseId = "";
   render();
 }
@@ -2242,19 +2246,23 @@ function bindEvents() {
   });
   els.expenseForm.addEventListener("submit", (event) => {
     event.preventDefault();
+    const lastDate = els.expenseDate.value;
+    const lastCurrency = els.expenseCurrency.value;
+    const lastPayer = els.expensePayer.value;
     addExpense({
       title: els.expenseTitle.value.trim(),
       amount: Number(els.expenseAmount.value),
-      currency: els.expenseCurrency.value,
-      date: els.expenseDate.value,
-      payer: els.expensePayer.value,
+      currency: lastCurrency,
+      date: lastDate,
+      payer: lastPayer,
       category: "여행",
       participants: [...state.people],
     });
     els.expenseForm.reset();
-    els.expenseCurrency.value = state.settlementCurrency;
-    setToday();
+    els.expenseDate.value = lastDate || state.tripDate || new Date().toISOString().slice(0, 10);
+    els.expenseCurrency.value = CURRENCIES.includes(lastCurrency) ? lastCurrency : state.settlementCurrency;
     renderPayers();
+    els.expensePayer.value = state.people.includes(lastPayer) ? lastPayer : state.people[0];
   });
   els.expenseSortKey.addEventListener("change", () => {
     uiState.expenseSortKey = els.expenseSortKey.value;
