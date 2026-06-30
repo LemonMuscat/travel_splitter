@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>정산 링크</title>
-    <link rel="stylesheet" href="./styles.css?v=48" />
+    <link rel="stylesheet" href="./styles.css?v=49" />
   </head>
   <body>
     <div class="app-shell" data-active-tab="expenses">
@@ -111,14 +111,17 @@
                 <h2>🧾 결제 내역</h2>
                 <p id="expenseSummary">0건</p>
               </div>
-              <div class="sort-box" aria-label="결제 내역 정렬">
-                <label for="expenseSortKey">정렬</label>
-                <select id="expenseSortKey">
-                  <option value="date">결제일</option>
-                  <option value="amount">금액</option>
-                  <option value="title">내용</option>
-                </select>
-                <button id="expenseSortDirection" type="button" title="정렬 방향" aria-label="정렬 방향">↓</button>
+              <div class="expense-tools">
+                <div class="sort-box" aria-label="결제 내역 정렬">
+                  <label for="expenseSortKey">정렬</label>
+                  <select id="expenseSortKey">
+                    <option value="date">결제일</option>
+                    <option value="amount">금액</option>
+                    <option value="title">내용</option>
+                  </select>
+                  <button id="expenseSortDirection" type="button" title="정렬 방향" aria-label="정렬 방향">↓</button>
+                </div>
+                <button class="bulk-toggle-button" id="bulkToggleButton" type="button" aria-expanded="false" aria-controls="bulkPanel">일괄 수정</button>
               </div>
             </div>
             <div class="expense-table" id="expenseList"></div>
@@ -302,6 +305,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=48"></script>
+    <script src="./app.js?v=49"></script>
   </body>
 </html>

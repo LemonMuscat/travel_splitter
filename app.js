@@ -21,6 +21,7 @@ const uiState = {
   expenseSortDirection: "desc",
   editingExpenseId: "",
   selectedExpenseIds: new Set(),
+  bulkPanelOpen: false,
 };
 
 let state = createTrip("새 정산", []);
@@ -63,6 +64,7 @@ const els = {
   expenseSortKey: document.querySelector("#expenseSortKey"),
   expenseSortDirection: document.querySelector("#expenseSortDirection"),
   expenseList: document.querySelector("#expenseList"),
+  bulkToggleButton: document.querySelector("#bulkToggleButton"),
   bulkPanel: document.querySelector("#bulkPanel"),
   bulkSelectionCount: document.querySelector("#bulkSelectionCount"),
   selectAllExpensesButton: document.querySelector("#selectAllExpensesButton"),
@@ -549,7 +551,11 @@ function renderBulkControls() {
   if (!els.bulkPanel) return;
   pruneSelectedExpenses();
   const selectedCount = uiState.selectedExpenseIds.size;
-  els.bulkPanel.hidden = !state.expenses.length;
+  const hasExpenses = state.expenses.length > 0;
+  els.bulkToggleButton.hidden = !hasExpenses;
+  els.bulkToggleButton.textContent = uiState.bulkPanelOpen ? "일괄 수정 닫기" : "일괄 수정";
+  els.bulkToggleButton.setAttribute("aria-expanded", uiState.bulkPanelOpen ? "true" : "false");
+  els.bulkPanel.hidden = !hasExpenses || !uiState.bulkPanelOpen;
   els.bulkSelectionCount.textContent = selectedCount ? `${selectedCount}건 선택됨` : "0건 선택";
   els.applyBulkButton.disabled = selectedCount === 0;
   els.bulkPanel.classList.toggle("has-selection", selectedCount > 0);
@@ -996,13 +1002,17 @@ function toggleExpenseIncluded(id) {
 
 function toggleExpenseSelection(id) {
   if (uiState.selectedExpenseIds.has(id)) uiState.selectedExpenseIds.delete(id);
-  else uiState.selectedExpenseIds.add(id);
+  else {
+    uiState.selectedExpenseIds.add(id);
+    uiState.bulkPanelOpen = true;
+  }
   uiState.editingExpenseId = "";
   renderExpenses();
 }
 
 function selectAllExpenses() {
   getSortedExpenses().forEach((expense) => uiState.selectedExpenseIds.add(expense.id));
+  uiState.bulkPanelOpen = true;
   uiState.editingExpenseId = "";
   renderExpenses();
 }
@@ -1050,6 +1060,8 @@ function applyBulkChanges() {
 
   els.bulkCategory.value = "";
   uiState.editingExpenseId = "";
+  uiState.selectedExpenseIds.clear();
+  uiState.bulkPanelOpen = false;
   render();
 }
 
@@ -2231,6 +2243,10 @@ function bindEvents() {
   els.expenseSortDirection.addEventListener("click", () => {
     uiState.expenseSortDirection = uiState.expenseSortDirection === "desc" ? "asc" : "desc";
     renderExpenses();
+  });
+  els.bulkToggleButton.addEventListener("click", () => {
+    uiState.bulkPanelOpen = !uiState.bulkPanelOpen;
+    renderBulkControls();
   });
   els.selectAllExpensesButton.addEventListener("click", selectAllExpenses);
   els.clearExpenseSelectionButton.addEventListener("click", clearExpenseSelection);

@@ -446,6 +446,30 @@ textarea:focus {
   font-weight: 750;
 }
 
+.expense-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bulk-toggle-button {
+  min-height: 42px;
+  border-radius: 8px;
+  padding: 0 16px;
+  color: var(--accent-strong);
+  background: #eaf1ff;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.bulk-toggle-button:hover {
+  background: #dce8ff;
+}
+
+.bulk-toggle-button[hidden] {
+  display: none;
+}
+
 .bulk-panel {
   display: grid;
   gap: 10px;
@@ -1081,6 +1105,15 @@ textarea:focus {
   .expense-toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .expense-tools {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .bulk-toggle-button {
+    width: 100%;
   }
 
   .bulk-head,
