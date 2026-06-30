@@ -1,0 +1,5 @@
+.DS_Store
+.pycache/
+__pycache__/
+.swift-module-cache/
+*.pyc
