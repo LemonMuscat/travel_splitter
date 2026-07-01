@@ -26,7 +26,7 @@ const uiState = {
   settingsPanelOpen: false,
 };
 
-let state = createTrip("새 정산", []);
+let state = createTrip("🧳 여행 1", []);
 let personInputComposing = false;
 let lastPersonAdd = { name: "", time: 0 };
 
@@ -130,11 +130,11 @@ function createTrip(name = nextTripName(), expenses = []) {
 }
 
 function createInitialTrip() {
-  return createTrip("정산 1", []);
+  return createTrip("🧳 여행 1", []);
 }
 
 function nextTripName() {
-  return `정산 ${appState.trips.length + 1}`;
+  return `🧳 여행 ${appState.trips.length + 1}`;
 }
 
 function normalizeTrip(trip) {
@@ -1858,7 +1858,7 @@ function createNewTrip() {
   appState.trips.push(trip);
   setActiveTrip(trip.id);
   els.shareBox.hidden = true;
-  resetImportPanel("새 정산을 만들었습니다. 엑셀 파일을 올리거나 카드사 내역을 붙여넣으세요.");
+  resetImportPanel("새 여행을 만들었습니다. 엑셀 파일을 올리거나 카드사 내역을 붙여넣으세요.");
   render();
 }
 
