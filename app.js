@@ -88,6 +88,7 @@ const els = {
   settlementList: document.querySelector("#settlementList"),
   settlementSummary: document.querySelector("#settlementSummary"),
   paymentTable: document.querySelector("#paymentTable"),
+  paymentBreakdown: document.querySelector("#paymentBreakdown"),
   reportTripName: document.querySelector("#reportTripName"),
   reportSubtitle: document.querySelector("#reportSubtitle"),
   settlementReport: document.querySelector("#settlementReport"),
@@ -408,23 +409,42 @@ function calculate() {
   const balances = Object.fromEntries(state.people.map((name) => [name, 0]));
   const paid = Object.fromEntries(state.people.map((name) => [name, 0]));
   const owed = Object.fromEntries(state.people.map((name) => [name, 0]));
+  const sharedOwed = Object.fromEntries(state.people.map((name) => [name, 0]));
+  const personalOwed = Object.fromEntries(state.people.map((name) => [name, 0]));
   let total = 0;
+  let sharedTotal = 0;
+  let personalTotal = 0;
 
   state.expenses.filter((expense) => expense.included !== false).forEach((expense) => {
     const settlementAmount = toSettlementAmount(expense);
     const splitters = expenseShareEntries(expense).filter(({ name }) => balances[name] !== undefined);
     const totalWeight = splitters.reduce((sum, item) => sum + item.weight, 0) || 1;
+    const isPersonal = splitters.length === 1;
     total += settlementAmount;
+    if (isPersonal) personalTotal += settlementAmount;
+    else sharedTotal += settlementAmount;
     balances[expense.payer] = (balances[expense.payer] || 0) + settlementAmount;
     paid[expense.payer] = (paid[expense.payer] || 0) + settlementAmount;
     splitters.forEach(({ name, weight }) => {
       const share = settlementAmount * (weight / totalWeight);
       balances[name] = (balances[name] || 0) - share;
       owed[name] = (owed[name] || 0) + share;
+      if (isPersonal) personalOwed[name] = (personalOwed[name] || 0) + share;
+      else sharedOwed[name] = (sharedOwed[name] || 0) + share;
     });
   });
 
-  return { total, balances, paid, owed, settlements: settleBalances(balances) };
+  return {
+    total,
+    sharedTotal,
+    personalTotal,
+    balances,
+    paid,
+    owed,
+    sharedOwed,
+    personalOwed,
+    settlements: settleBalances(balances),
+  };
 }
 
 function expenseShareEntries(expense) {
@@ -442,6 +462,10 @@ function expenseBurdenMode(expense) {
   const sameWeight = entries.every((entry) => entry.weight === entries[0]?.weight);
   const includesEveryone = state.people.every((person) => entries.some((entry) => entry.name === person));
   return sameWeight && includesEveryone ? "equal" : "custom";
+}
+
+function isPersonalExpense(expense) {
+  return expenseShareEntries(expense).length === 1;
 }
 
 function splitLabel(expense) {
@@ -658,8 +682,39 @@ function renderExpenses() {
     return;
   }
 
-  const template = document.querySelector("#expenseRowTemplate");
-  getSortedExpenses().forEach((expense) => {
+  const sortedExpenses = getSortedExpenses();
+  const sharedExpenses = sortedExpenses.filter((expense) => !isPersonalExpense(expense));
+  const personalExpenses = sortedExpenses.filter(isPersonalExpense);
+  const groups = personalExpenses.length
+    ? [
+      { title: "🤝 공동 부담 내역", description: "함께 나누는 결제", expenses: sharedExpenses },
+      { title: "👤 개인 부담 내역", description: "지정한 사람만 부담하는 결제", expenses: personalExpenses },
+    ].filter((group) => group.expenses.length)
+    : [{ title: "", description: "", expenses: sortedExpenses }];
+
+  groups.forEach((group) => {
+    const section = document.createElement("section");
+    section.className = "expense-group";
+    if (group.title) {
+      const head = document.createElement("div");
+      head.className = "expense-group-head";
+      const title = document.createElement("h3");
+      const description = document.createElement("span");
+      title.textContent = group.title;
+      description.textContent = `${group.description} · ${group.expenses.length}건`;
+      head.append(title, description);
+      section.append(head);
+    }
+    const rows = document.createElement("div");
+    rows.className = "expense-group-rows";
+    group.expenses.forEach((expense) => rows.append(createExpenseRow(expense)));
+    section.append(rows);
+    els.expenseList.append(section);
+  });
+}
+
+function createExpenseRow(expense) {
+    const template = document.querySelector("#expenseRowTemplate");
     const row = template.content.firstElementChild.cloneNode(true);
     const money = formatExpenseMoneyParts(expense);
     const included = expense.included !== false;
@@ -725,8 +780,7 @@ function renderExpenses() {
       event.stopPropagation();
       deleteExpense(expense.id);
     });
-    els.expenseList.append(row);
-  });
+    return row;
 }
 
 function renderExpenseSummary() {
@@ -770,12 +824,13 @@ function compareExpenseValue(a, b, key) {
 }
 
 function renderResults() {
-  const { total, balances, paid, owed, settlements } = calculate();
+  const results = calculate();
+  const { total, sharedTotal, balances, paid, owed, settlements } = results;
   els.totalSpend.textContent = formatMoney(total);
-  els.perPerson.textContent = formatSettlementMoney(total / Math.max(state.people.length, 1));
+  els.perPerson.textContent = formatSettlementMoney(sharedTotal / Math.max(state.people.length, 1));
   els.settlementCount.textContent = `${settlements.length}건`;
   els.settlementSummary.textContent = settlements.length ? `${settlements.length}번 송금` : "송금 없음";
-  renderPaymentTable({ total, balances, paid, owed });
+  renderPaymentTable(results);
   renderAccount();
 
   els.balanceList.replaceChildren();
@@ -800,15 +855,16 @@ function renderResults() {
   });
 }
 
-function renderPaymentTable({ total, balances, paid, owed }) {
+function renderPaymentTable({ total, sharedTotal, personalTotal, balances, paid, owed, sharedOwed, personalOwed }) {
   els.reportTripName.textContent = state.tripName || "정산";
   els.reportSubtitle.textContent = `${tripPeriodLabel()} · ${state.people.join(" · ")}`;
   els.reportSubtitle.title = "클릭해서 일정을 수정";
   els.paymentTable.replaceChildren();
+  els.paymentBreakdown.textContent = `공동 부담 ${formatSettlementMoney(sharedTotal)} · 개인 부담 ${formatSettlementMoney(personalTotal)}`;
 
   const header = document.createElement("div");
   header.className = "payment-row payment-head";
-  ["이름", "결제", "부담", "정산"].forEach((label) => {
+  ["이름", "결제", "공동 부담", "개인 부담", "정산"].forEach((label) => {
     const cellEl = document.createElement("span");
     cellEl.textContent = label;
     header.append(cellEl);
@@ -820,7 +876,13 @@ function renderPaymentTable({ total, balances, paid, owed }) {
     const row = document.createElement("div");
     row.className = `payment-row ${balance > 0 ? "is-creditor" : ""}`;
     const status = settlementStatus(balance);
-    [name, formatMoney(paid[name] || 0), formatSettlementMoney(owed[name] || 0), status].forEach((value, index) => {
+    [
+      name,
+      formatMoney(paid[name] || 0),
+      formatSettlementMoney(sharedOwed[name] || 0),
+      formatSettlementMoney(personalOwed[name] || 0),
+      status,
+    ].forEach((value, index) => {
       const cellEl = document.createElement(index === 0 ? "strong" : "span");
       cellEl.textContent = value;
       if (index === 3) cellEl.className = balance > 0 ? "amount-positive" : balance < 0 ? "amount-negative" : "";
@@ -2090,18 +2152,22 @@ async function importDataFile() {
 }
 
 function exportSettlementImage() {
-  const { total, balances, paid, owed } = calculate();
-  const expenses = getSortedExpenses();
+  const { total, sharedTotal, personalTotal, balances, paid, sharedOwed, personalOwed } = calculate();
+  const sortedExpenses = getSortedExpenses();
+  const sharedExpenses = sortedExpenses.filter((expense) => !isPersonalExpense(expense));
+  const personalExpenses = sortedExpenses.filter(isPersonalExpense);
+  const expenses = [...sharedExpenses, ...personalExpenses];
   const width = 1080;
   const rowHeight = 88;
   const expenseRowHeight = 108;
   const headerTop = 150;
-  const startY = 298;
-  const settlementCardHeight = 230 + state.people.length * rowHeight;
+  const startY = 326;
+  const settlementCardHeight = 258 + state.people.length * rowHeight;
   const accountY = headerTop + settlementCardHeight + 48;
   const expenseTitleY = accountY + 150;
   const expenseStartY = expenseTitleY + 46;
-  const footerY = expenseStartY + Math.max(expenses.length, 1) * expenseRowHeight + 36;
+  const personalSectionHeight = personalExpenses.length ? 58 : 0;
+  const footerY = expenseStartY + Math.max(expenses.length, 1) * expenseRowHeight + personalSectionHeight + 36;
   const height = footerY + 80;
   const scale = 2;
   const canvas = document.createElement("canvas");
@@ -2119,18 +2185,20 @@ function exportSettlementImage() {
   roundRect(ctx, 52, headerTop, width - 104, settlementCardHeight, 24, "#ffffff", "#2f6df6", 4);
   drawText(ctx, "💸 각자 낼 돈", 96, 214, 30, 900);
   drawText(ctx, `총 지출 ${formatMoney(total)} · ${state.people.length}명`, 96, 250, 22, 700, "#65717d");
+  drawText(ctx, `공동 부담 ${formatSettlementMoney(sharedTotal)} · 개인 부담 ${formatSettlementMoney(personalTotal)}`, 96, 278, 20, 800, "#536477");
 
-  ["이름", "결제", "부담", "정산"].forEach((label, index) => {
-    drawText(ctx, label, [96, 350, 565, 790][index], startY, 20, 800, "#65717d");
+  ["이름", "결제", "공동", "개인", "정산"].forEach((label, index) => {
+    drawText(ctx, label, [96, 320, 500, 670, 830][index], startY, 19, 800, "#65717d");
   });
   state.people.forEach((name, index) => {
     const y = startY + 42 + index * rowHeight;
     const balance = balances[name] || 0;
     if (balance > 0) roundRect(ctx, 82, y - 35, width - 164, 68, 0, "#e8f8f1");
     drawText(ctx, name, 96, y, 27, 900);
-    drawText(ctx, formatMoney(paid[name] || 0), 350, y, 23, 850);
-    drawText(ctx, formatSettlementMoney(owed[name] || 0), 565, y, 23, 850);
-    drawText(ctx, settlementStatus(balance), 740, y, 22, 900, balance > 0 ? "#0f8a61" : balance < 0 ? "#e3343f" : "#65717d");
+    drawText(ctx, formatMoney(paid[name] || 0), 320, y, 21, 850);
+    drawText(ctx, formatSettlementMoney(sharedOwed[name] || 0), 500, y, 21, 850);
+    drawText(ctx, formatSettlementMoney(personalOwed[name] || 0), 670, y, 21, 850, personalOwed[name] ? "#7a42d4" : "#65717d");
+    drawText(ctx, settlementStatus(balance), 830, y, 20, 900, balance > 0 ? "#0f8a61" : balance < 0 ? "#e3343f" : "#65717d");
   });
 
   drawText(ctx, "🏦 보내실 곳", 96, accountY, 24, 850, "#65717d");
@@ -2143,8 +2211,13 @@ function exportSettlementImage() {
     roundRect(ctx, 96, expenseStartY - 26, width - 192, 56, 12, "#ffffff", "#dce3e8", 1);
     drawText(ctx, "아직 결제 내역이 없습니다.", 124, expenseStartY + 9, 22, 750, "#65717d");
   } else {
+    let y = expenseStartY;
     expenses.forEach((expense, index) => {
-      const y = expenseStartY + index * expenseRowHeight;
+      if (personalExpenses.length && index === sharedExpenses.length) {
+        drawText(ctx, "👤 개인 부담 내역", 96, y + 4, 26, 900, "#7a42d4");
+        drawText(ctx, `${personalExpenses.length}건 · 지정한 사람만 부담`, 350, y + 4, 18, 750, "#65717d");
+        y += personalSectionHeight;
+      }
       const included = expense.included !== false;
       const category = categoryLabel(expense.category);
       const detail = [`${expense.payer} 결제`, splitLabel(expense), category, included ? "" : "정산 제외"].filter(Boolean).join(" · ");
@@ -2160,6 +2233,7 @@ function exportSettlementImage() {
       } else {
         drawRightText(ctx, money.original, 950, y + 18, 29, 900, included ? "#17202a" : "#9aa5af");
       }
+      y += expenseRowHeight;
     });
   }
 

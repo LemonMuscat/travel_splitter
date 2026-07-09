@@ -630,6 +630,39 @@ textarea:focus {
   gap: 10px;
 }
 
+.expense-group,
+.expense-group-rows {
+  display: grid;
+  gap: 10px;
+}
+
+.expense-group + .expense-group {
+  margin-top: 14px;
+}
+
+.expense-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 2px 0;
+}
+
+.expense-group-head h3 {
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.expense-group-head span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.expense-group:last-child .expense-group-head h3 {
+  color: #7a42d4;
+}
+
 .expense-row,
 .balance-row,
 .settlement-row {
@@ -1014,9 +1047,16 @@ textarea:focus {
   font-weight: 950;
 }
 
+.payment-breakdown {
+  margin: -8px 0 0;
+  color: #536477;
+  font-size: 14px;
+  font-weight: 850;
+}
+
 .payment-row {
   display: grid;
-  grid-template-columns: minmax(90px, 1fr) minmax(95px, 1fr) minmax(95px, 1fr) minmax(130px, 1.2fr);
+  grid-template-columns: minmax(80px, 0.9fr) minmax(84px, 1fr) minmax(84px, 1fr) minmax(84px, 1fr) minmax(126px, 1.2fr);
   align-items: center;
   min-height: 68px;
   border-bottom: 1px solid var(--line);
@@ -1514,11 +1554,22 @@ textarea:focus {
   }
 
   .payment-row span:nth-child(3)::before {
-    content: "부담 ";
+    content: "공동 ";
     color: var(--muted);
   }
 
   .payment-row span:nth-child(4) {
+    grid-column: 1 / -1;
+    color: #7a42d4;
+    font-size: 15px;
+  }
+
+  .payment-row span:nth-child(4)::before {
+    content: "개인 ";
+    color: var(--muted);
+  }
+
+  .payment-row span:nth-child(5) {
     grid-column: 1 / -1;
     font-size: 18px;
     border-radius: 8px;
@@ -1526,11 +1577,11 @@ textarea:focus {
     background: #fff1f1;
   }
 
-  .payment-row span:nth-child(4).amount-positive {
+  .payment-row span:nth-child(5).amount-positive {
     background: #e9f8f2;
   }
 
-  .payment-row span:nth-child(4):not(.amount-positive):not(.amount-negative) {
+  .payment-row span:nth-child(5):not(.amount-positive):not(.amount-negative) {
     background: #f2f5f7;
   }
 

@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-title" content="Travel Split" />
 
-    <link rel="stylesheet" href="./styles.css?v=55" />
+    <link rel="stylesheet" href="./styles.css?v=56" />
   </head>
   <body>
     <div class="app-shell" data-active-tab="expenses">
@@ -76,7 +76,7 @@
                 <strong id="totalSpend">0원</strong>
               </div>
               <div class="metric">
-                <span>1인 예상</span>
+                <span>공동 1인 예상</span>
                 <strong id="perPerson">0원</strong>
               </div>
               <div class="metric">
@@ -105,6 +105,7 @@
                 <span id="reportSubtitle">자동 계산</span>
               </div>
               <h3 class="payment-title">💸 각자 낼 돈</h3>
+              <p class="payment-breakdown" id="paymentBreakdown"></p>
               <div class="payment-table" id="paymentTable"></div>
               <div class="send-to-card">
                 <div class="section-head">
@@ -321,6 +322,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=55"></script>
+    <script src="./app.js?v=56"></script>
   </body>
 </html>
