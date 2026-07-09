@@ -18,7 +18,7 @@ const appState = {
 
 const uiState = {
   expenseSortKey: "date",
-  expenseSortDirection: "desc",
+  expenseSortDirection: "asc",
   editingExpenseId: "",
   selectedExpenseIds: new Set(),
   bulkPanelOpen: false,
@@ -885,7 +885,8 @@ function renderPaymentTable({ total, sharedTotal, personalTotal, balances, paid,
     ].forEach((value, index) => {
       const cellEl = document.createElement(index === 0 ? "strong" : "span");
       cellEl.textContent = value;
-      if (index === 3) cellEl.className = balance > 0 ? "amount-positive" : balance < 0 ? "amount-negative" : "";
+      if (index === 3) cellEl.className = "amount-personal";
+      if (index === 4) cellEl.className = `payment-status ${balance > 0 ? "amount-positive" : balance < 0 ? "amount-negative" : ""}`;
       row.append(cellEl);
     });
     els.paymentTable.append(row);
@@ -2187,18 +2188,20 @@ function exportSettlementImage() {
   drawText(ctx, `총 지출 ${formatMoney(total)} · ${state.people.length}명`, 96, 250, 22, 700, "#65717d");
   drawText(ctx, `공동 부담 ${formatSettlementMoney(sharedTotal)} · 개인 부담 ${formatSettlementMoney(personalTotal)}`, 96, 278, 20, 800, "#536477");
 
-  ["이름", "결제", "공동", "개인", "정산"].forEach((label, index) => {
-    drawText(ctx, label, [96, 320, 500, 670, 830][index], startY, 19, 800, "#65717d");
-  });
+  drawText(ctx, "이름", 96, startY, 19, 800, "#65717d");
+  drawRightText(ctx, "결제", 420, startY, 19, 800, "#65717d");
+  drawRightText(ctx, "공동", 590, startY, 19, 800, "#65717d");
+  drawRightText(ctx, "개인", 750, startY, 19, 800, "#65717d");
+  drawRightText(ctx, "정산", 930, startY, 19, 800, "#65717d");
   state.people.forEach((name, index) => {
     const y = startY + 42 + index * rowHeight;
     const balance = balances[name] || 0;
     if (balance > 0) roundRect(ctx, 82, y - 35, width - 164, 68, 0, "#e8f8f1");
     drawText(ctx, name, 96, y, 27, 900);
-    drawText(ctx, formatMoney(paid[name] || 0), 320, y, 21, 850);
-    drawText(ctx, formatSettlementMoney(sharedOwed[name] || 0), 500, y, 21, 850);
-    drawText(ctx, formatSettlementMoney(personalOwed[name] || 0), 670, y, 21, 850, personalOwed[name] ? "#7a42d4" : "#65717d");
-    drawText(ctx, settlementStatus(balance), 830, y, 20, 900, balance > 0 ? "#0f8a61" : balance < 0 ? "#e3343f" : "#65717d");
+    drawRightText(ctx, formatMoney(paid[name] || 0), 420, y, 21, 850);
+    drawRightText(ctx, formatSettlementMoney(sharedOwed[name] || 0), 590, y, 21, 850);
+    drawRightText(ctx, formatSettlementMoney(personalOwed[name] || 0), 750, y, 21, 850, personalOwed[name] ? "#7a42d4" : "#65717d");
+    drawRightText(ctx, settlementStatus(balance), 930, y, 20, 900, balance > 0 ? "#0f8a61" : balance < 0 ? "#e3343f" : "#65717d");
   });
 
   drawText(ctx, "🏦 보내실 곳", 96, accountY, 24, 850, "#65717d");
