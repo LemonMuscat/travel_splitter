@@ -428,7 +428,7 @@ textarea:focus {
 
 .expense-form {
   display: grid;
-  grid-template-columns: minmax(160px, 1.4fr) minmax(96px, 0.65fr) 96px minmax(126px, 0.8fr) minmax(112px, 0.8fr) minmax(72px, 0.4fr);
+  grid-template-columns: minmax(160px, 1.4fr) minmax(96px, 0.65fr) 96px minmax(126px, 0.8fr) minmax(112px, 0.8fr) minmax(132px, 0.9fr) minmax(72px, 0.4fr);
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -756,7 +756,12 @@ textarea:focus {
 }
 
 .expense-edit-payer,
+.expense-edit-burden-mode,
 .expense-share-editor {
+  grid-column: 1 / -1;
+}
+
+.expense-edit-burden-person {
   grid-column: 1 / -1;
 }
 
@@ -771,6 +776,16 @@ textarea:focus {
 
 .expense-edit-category {
   color: #0f8a61;
+}
+
+.expense-edit-burden-mode {
+  color: #2563eb;
+  background: #f4f7ff;
+}
+
+.expense-edit-burden-person {
+  color: #8a3ffc;
+  background: #fbf7ff;
 }
 
 .expense-share-editor {
@@ -833,6 +848,11 @@ textarea:focus {
 .expense-tags .expense-category {
   color: #0f8a61;
   background: #e7f6ef;
+}
+
+.expense-tags .expense-split {
+  color: #6b3cc7;
+  background: #f0ebff;
 }
 
 .expense-amount {

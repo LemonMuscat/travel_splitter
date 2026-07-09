@@ -65,6 +65,8 @@ const els = {
   expenseCurrency: document.querySelector("#expenseCurrency"),
   expenseDate: document.querySelector("#expenseDate"),
   expensePayer: document.querySelector("#expensePayer"),
+  expenseBurdenMode: document.querySelector("#expenseBurdenMode"),
+  expenseBurdenPerson: document.querySelector("#expenseBurdenPerson"),
   expenseSummary: document.querySelector("#expenseSummary"),
   expenseSortKey: document.querySelector("#expenseSortKey"),
   expenseSortDirection: document.querySelector("#expenseSortDirection"),
@@ -434,11 +436,19 @@ function expenseShareEntries(expense) {
   return splitters.map((name) => ({ name, weight: 1 }));
 }
 
+function expenseBurdenMode(expense) {
+  const entries = expenseShareEntries(expense);
+  if (entries.length === 1) return "single";
+  const sameWeight = entries.every((entry) => entry.weight === entries[0]?.weight);
+  const includesEveryone = state.people.every((person) => entries.some((entry) => entry.name === person));
+  return sameWeight && includesEveryone ? "equal" : "custom";
+}
+
 function splitLabel(expense) {
   const entries = expenseShareEntries(expense);
-  if (entries.length === 1) return `${entries[0].name} 부담`;
+  if (entries.length === 1) return `${entries[0].name} 개인 부담`;
   const equal = entries.every((entry) => entry.weight === entries[0].weight);
-  return equal ? `${entries.length}명 분할` : "가중 분담";
+  return equal ? `${entries.length}명 공동 부담` : "직접 분담";
 }
 
 function expenseShareInputValues(expense) {
@@ -538,14 +548,23 @@ function renderPeople() {
 
 function renderPayers() {
   const current = els.expensePayer.value || state.people[0];
+  const burdenPerson = els.expenseBurdenPerson.value || state.people[0];
   els.expensePayer.replaceChildren();
+  els.expenseBurdenPerson.replaceChildren();
   state.people.forEach((name) => {
     const option = document.createElement("option");
     option.value = name;
     option.textContent = name;
     els.expensePayer.append(option);
+    els.expenseBurdenPerson.append(new Option(`${name} 개인 부담`, name));
   });
   els.expensePayer.value = state.people.includes(current) ? current : state.people[0];
+  els.expenseBurdenPerson.value = state.people.includes(burdenPerson) ? burdenPerson : state.people[0];
+}
+
+function updateManualBurdenVisibility() {
+  if (!els.expenseBurdenMode || !els.expenseBurdenPerson) return;
+  els.expenseBurdenPerson.hidden = els.expenseBurdenMode.value !== "single";
 }
 
 function pruneSelectedExpenses() {
@@ -575,7 +594,7 @@ function renderBulkControls() {
 
   const splitPersonValue = els.bulkSplitPerson.value || state.people[0];
   els.bulkSplitPerson.replaceChildren();
-  state.people.forEach((person) => els.bulkSplitPerson.append(new Option(`${person} 부담`, person)));
+  state.people.forEach((person) => els.bulkSplitPerson.append(new Option(`${person} 개인 부담`, person)));
   els.bulkSplitPerson.value = state.people.includes(splitPersonValue) ? splitPersonValue : state.people[0];
 
   renderBulkShareInputs();
@@ -588,7 +607,7 @@ function renderBulkShareInputs() {
     .map((input) => [input.dataset.person, input.value]));
   els.bulkShareInputs.replaceChildren();
   const title = document.createElement("strong");
-  title.textContent = "직접 비율";
+  title.textContent = "직접 부담 비율 · 0은 부담에서 제외";
   els.bulkShareInputs.append(title);
   state.people.forEach((person) => {
     const label = document.createElement("label");
@@ -619,6 +638,7 @@ function renderManualFormControls() {
   els.manualToggleButton.textContent = uiState.manualFormOpen ? "수동 입력 닫기" : "수동 입력";
   els.manualToggleButton.setAttribute("aria-expanded", uiState.manualFormOpen ? "true" : "false");
   els.expenseForm.hidden = !uiState.manualFormOpen;
+  updateManualBurdenVisibility();
 }
 
 function renderSettingsPanelControls() {
@@ -821,7 +841,7 @@ function renderAccount() {
 }
 
 function settlementStatus(balance) {
-  if (balance > 0) return `받을 금액 ${formatSettlementMoney(balance)}`;
+  if (balance > 0) return "정산 받을 사람";
   if (balance < 0) return `보낼 금액 ${formatSettlementMoney(Math.abs(balance))}`;
   return "정산 완료";
 }
@@ -940,10 +960,26 @@ function createExpenseEditor(expense, category) {
   });
   payerSelect.value = state.people.includes(expense.payer) ? expense.payer : state.people[0];
 
+  const burdenModeSelect = document.createElement("select");
+  burdenModeSelect.className = "expense-edit-burden-mode";
+  burdenModeSelect.setAttribute("aria-label", "부담 구분");
+  [
+    ["equal", "전체 공동 부담"],
+    ["single", "개인 부담"],
+    ["custom", "직접 분담"],
+  ].forEach(([value, label]) => burdenModeSelect.append(new Option(label, value)));
+  burdenModeSelect.value = expenseBurdenMode(expense);
+
+  const burdenPersonSelect = document.createElement("select");
+  burdenPersonSelect.className = "expense-edit-burden-person";
+  burdenPersonSelect.setAttribute("aria-label", "개인 부담자");
+  state.people.forEach((person) => burdenPersonSelect.append(new Option(`${person} 개인 부담`, person)));
+  burdenPersonSelect.value = expenseShareEntries(expense)[0]?.name || state.people[0];
+
   const shareBox = document.createElement("div");
   shareBox.className = "expense-share-editor";
   const shareTitle = document.createElement("strong");
-  shareTitle.textContent = "부담 비율";
+  shareTitle.textContent = "직접 부담 비율 · 0은 부담에서 제외";
   shareBox.append(shareTitle);
   const currentShares = expenseShareInputValues(expense);
   state.people.forEach((person) => {
@@ -962,6 +998,13 @@ function createExpenseEditor(expense, category) {
     shareBox.append(label);
   });
 
+  const updateBurdenEditor = () => {
+    burdenPersonSelect.hidden = burdenModeSelect.value !== "single";
+    shareBox.hidden = burdenModeSelect.value !== "custom";
+  };
+  burdenModeSelect.addEventListener("change", updateBurdenEditor);
+  updateBurdenEditor();
+
   [titleInput, categoryInput, dateInput, amountInput, convertedInput].forEach((input) => {
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") saveExpenseEdit(expense.id, editor.closest(".expense-row"));
@@ -972,7 +1015,18 @@ function createExpenseEditor(expense, category) {
     });
   });
 
-  editor.append(titleInput, categoryInput, dateInput, amountInput, currencySelect, convertedInput, payerSelect, shareBox);
+  editor.append(
+    titleInput,
+    categoryInput,
+    dateInput,
+    amountInput,
+    currencySelect,
+    convertedInput,
+    payerSelect,
+    burdenModeSelect,
+    burdenPersonSelect,
+    shareBox,
+  );
   return editor;
 }
 
@@ -989,7 +1043,9 @@ function saveExpenseEdit(id, row) {
   const currencySelect = row?.querySelector(".expense-edit-currency");
   const convertedInput = row?.querySelector(".expense-edit-converted");
   const payerSelect = row?.querySelector(".expense-edit-payer");
-  if (!titleInput || !categoryInput || !dateInput || !amountInput || !currencySelect || !convertedInput || !payerSelect) return;
+  const burdenModeSelect = row?.querySelector(".expense-edit-burden-mode");
+  const burdenPersonSelect = row?.querySelector(".expense-edit-burden-person");
+  if (!titleInput || !categoryInput || !dateInput || !amountInput || !currencySelect || !convertedInput || !payerSelect || !burdenModeSelect || !burdenPersonSelect) return;
 
   const currency = CURRENCIES.includes(currencySelect.value) ? currencySelect.value : "KRW";
   const amount = Number(amountInput.value) || 0;
@@ -997,7 +1053,15 @@ function saveExpenseEdit(id, row) {
   const shares = Object.fromEntries([...row.querySelectorAll(".expense-share-input")]
     .map((input) => [input.dataset.person, Number(input.value) || 0])
     .filter(([name, value]) => state.people.includes(name) && value > 0));
-  const participants = Object.keys(shares).length ? Object.keys(shares) : [...state.people];
+  const burdenMode = burdenModeSelect.value;
+  const personalBurden = burdenPersonSelect.value;
+  const burdenPatch = burdenMode === "equal"
+    ? { participants: [...state.people], shares: null }
+    : burdenMode === "single" && state.people.includes(personalBurden)
+      ? { participants: [personalBurden], shares: { [personalBurden]: 1 } }
+      : Object.keys(shares).length
+        ? { participants: Object.keys(shares), shares }
+        : { participants: [...state.people], shares: null };
   state.expenses = state.expenses.map((item) => item.id === id
     ? normalizeExpense({
       ...item,
@@ -1008,8 +1072,7 @@ function saveExpenseEdit(id, row) {
       payer: payerSelect.value,
       category: normalizeCategoryInput(categoryInput.value),
       date: normalizeDateInput(dateInput.value) || item.date,
-      participants,
-      shares: Object.keys(shares).length ? shares : null,
+      ...burdenPatch,
     })
     : item);
   uiState.editingExpenseId = "";
@@ -2249,6 +2312,11 @@ function bindEvents() {
     const lastDate = els.expenseDate.value;
     const lastCurrency = els.expenseCurrency.value;
     const lastPayer = els.expensePayer.value;
+    const burdenMode = els.expenseBurdenMode.value;
+    const burdenPerson = els.expenseBurdenPerson.value;
+    const burdenPatch = burdenMode === "single" && state.people.includes(burdenPerson)
+      ? { participants: [burdenPerson], shares: { [burdenPerson]: 1 } }
+      : { participants: [...state.people], shares: null };
     addExpense({
       title: els.expenseTitle.value.trim(),
       amount: Number(els.expenseAmount.value),
@@ -2256,13 +2324,16 @@ function bindEvents() {
       date: lastDate,
       payer: lastPayer,
       category: "여행",
-      participants: [...state.people],
+      ...burdenPatch,
     });
     els.expenseForm.reset();
     els.expenseDate.value = lastDate || state.tripDate || new Date().toISOString().slice(0, 10);
     els.expenseCurrency.value = CURRENCIES.includes(lastCurrency) ? lastCurrency : state.settlementCurrency;
     renderPayers();
     els.expensePayer.value = state.people.includes(lastPayer) ? lastPayer : state.people[0];
+    els.expenseBurdenMode.value = burdenMode === "single" ? "single" : "equal";
+    els.expenseBurdenPerson.value = state.people.includes(burdenPerson) ? burdenPerson : state.people[0];
+    updateManualBurdenVisibility();
   });
   els.expenseSortKey.addEventListener("change", () => {
     uiState.expenseSortKey = els.expenseSortKey.value;
@@ -2280,6 +2351,7 @@ function bindEvents() {
     uiState.manualFormOpen = !uiState.manualFormOpen;
     renderManualFormControls();
   });
+  els.expenseBurdenMode.addEventListener("change", updateManualBurdenVisibility);
   els.settingsToggleButton.addEventListener("click", () => {
     uiState.settingsPanelOpen = !uiState.settingsPanelOpen;
     renderSettingsPanelControls();

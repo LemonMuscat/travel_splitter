@@ -7,14 +7,13 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>정산 링크</title>
-
 <link rel="icon" href="./favicon.ico" sizes="any" />
 <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png" />
 <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-title" content="Travel Split" />
 
-    <link rel="stylesheet" href="./styles.css?v=54" />
+    <link rel="stylesheet" href="./styles.css?v=55" />
   </head>
   <body>
     <div class="app-shell" data-active-tab="expenses">
@@ -152,11 +151,11 @@
                 </select>
                 <select id="bulkSplitMode" aria-label="부담 방식 일괄 변경">
                   <option value="keep">분담 유지</option>
-                  <option value="equal">전체 인원 분할</option>
-                  <option value="single">한 사람 부담</option>
+                  <option value="equal">전체 공동 부담</option>
+                  <option value="single">개인 부담 지정</option>
                   <option value="custom">직접 비율</option>
                 </select>
-                <select id="bulkSplitPerson" aria-label="부담자 선택"></select>
+                <select id="bulkSplitPerson" aria-label="개인 부담자 선택"></select>
               </div>
               <div class="bulk-share-inputs" id="bulkShareInputs"></div>
               <div class="bulk-actions">
@@ -178,6 +177,11 @@
               </select>
               <input id="expenseDate" type="date" required />
               <select id="expensePayer" required></select>
+              <select id="expenseBurdenMode" aria-label="부담 구분">
+                <option value="equal">전체 공동 부담</option>
+                <option value="single">개인 부담</option>
+              </select>
+              <select id="expenseBurdenPerson" aria-label="개인 부담자 선택" hidden></select>
               <button class="primary-button" type="submit">추가</button>
             </form>
           </section>
@@ -317,6 +321,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=54"></script>
+    <script src="./app.js?v=55"></script>
   </body>
 </html>
