@@ -162,6 +162,13 @@ h2 {
   font-size: 22px;
 }
 
+.icon-button:disabled {
+  cursor: not-allowed;
+  color: #a8b1ba;
+  background: #eef2f4;
+  box-shadow: none;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: 330px minmax(0, 1fr);
@@ -1295,7 +1302,7 @@ textarea:focus {
 
   .top-actions {
     display: grid;
-    grid-template-columns: 42px;
+    grid-template-columns: repeat(3, 42px);
     justify-content: end;
   }
 

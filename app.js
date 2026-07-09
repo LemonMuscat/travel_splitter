@@ -5,6 +5,7 @@ const DEFAULT_RATES = { KRW: 1, JPY: 9.5, USD: 1540, THB: 42, VND: 0.06, CNY: 21
 const DATE_COLORS = ["#ffb000", "#4aa3f0", "#8b5cf6", "#0f8a61", "#f97316", "#ec4899", "#14b8a6", "#f472b6"];
 const DEFAULT_PEOPLE = ["나", "동행 1"];
 const KRW_SETTLEMENT_ROUND_UNIT = 10;
+const MAX_HISTORY_STEPS = 60;
 const DEFAULT_ACCOUNT = {
   bank: "",
   number: "",
@@ -24,6 +25,14 @@ const uiState = {
   bulkPanelOpen: false,
   manualFormOpen: false,
   settingsPanelOpen: false,
+};
+
+const historyState = {
+  undo: [],
+  redo: [],
+  lastSnapshot: "",
+  initialized: false,
+  isRestoring: false,
 };
 
 let state = createTrip("🧳 여행 1", []);
@@ -105,6 +114,8 @@ const els = {
   shareUrl: document.querySelector("#shareUrl"),
   shareStatus: document.querySelector("#shareStatus"),
   copyButton: document.querySelector("#copyButton"),
+  undoButton: document.querySelector("#undoButton"),
+  redoButton: document.querySelector("#redoButton"),
   resetButton: document.querySelector("#resetButton"),
   ledgerFileInput: document.querySelector("#ledgerFileInput"),
   ledgerText: document.querySelector("#ledgerText"),
@@ -227,7 +238,65 @@ function resetImportPanel(message = "엑셀 파일을 올리거나 엑셀에서 
 }
 
 function saveState() {
+  recordHistoryState();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+}
+
+function snapshotAppState() {
+  return JSON.stringify(appState);
+}
+
+function initializeHistory() {
+  historyState.lastSnapshot = snapshotAppState();
+  historyState.initialized = true;
+  updateHistoryButtons();
+}
+
+function recordHistoryState() {
+  if (!historyState.initialized || historyState.isRestoring) return;
+  const snapshot = snapshotAppState();
+  if (snapshot === historyState.lastSnapshot) return;
+  historyState.undo.push(historyState.lastSnapshot);
+  if (historyState.undo.length > MAX_HISTORY_STEPS) historyState.undo.shift();
+  historyState.redo = [];
+  historyState.lastSnapshot = snapshot;
+  updateHistoryButtons();
+}
+
+function updateHistoryButtons() {
+  if (!els.undoButton || !els.redoButton) return;
+  els.undoButton.disabled = historyState.undo.length === 0;
+  els.redoButton.disabled = historyState.redo.length === 0;
+}
+
+function restoreHistorySnapshot(snapshot) {
+  const parsed = JSON.parse(snapshot);
+  historyState.isRestoring = true;
+  appState.trips = Array.isArray(parsed.trips) ? parsed.trips.map(normalizeTrip) : [];
+  appState.activeTripId = parsed.activeTripId || appState.trips[0]?.id || "";
+  if (!appState.trips.length) {
+    appState.trips = [createInitialTrip()];
+    appState.activeTripId = appState.trips[0].id;
+  }
+  setActiveTrip(appState.activeTripId);
+  historyState.lastSnapshot = snapshot;
+  render();
+  historyState.isRestoring = false;
+  updateHistoryButtons();
+}
+
+function undoState() {
+  if (!historyState.undo.length) return;
+  historyState.redo.push(historyState.lastSnapshot);
+  const snapshot = historyState.undo.pop();
+  restoreHistorySnapshot(snapshot);
+}
+
+function redoState() {
+  if (!historyState.redo.length) return;
+  historyState.undo.push(historyState.lastSnapshot);
+  const snapshot = historyState.redo.pop();
+  restoreHistorySnapshot(snapshot);
 }
 
 function loadState() {
@@ -2327,6 +2396,23 @@ function safeFileName(name) {
 }
 
 function bindEvents() {
+  els.undoButton.addEventListener("click", undoState);
+  els.redoButton.addEventListener("click", redoState);
+  document.addEventListener("keydown", (event) => {
+    const shortcutKey = event.metaKey || event.ctrlKey;
+    const isEditable = event.target instanceof HTMLElement
+      && event.target.matches("input, textarea, select, [contenteditable='true']");
+    if (!shortcutKey || event.altKey || isEditable) return;
+    if (event.key.toLowerCase() === "z" && event.shiftKey) {
+      event.preventDefault();
+      redoState();
+      return;
+    }
+    if (event.key.toLowerCase() === "z") {
+      event.preventDefault();
+      undoState();
+    }
+  });
   els.tripSelect.addEventListener("change", () => {
     setActiveTrip(els.tripSelect.value);
     els.shareBox.hidden = true;
@@ -2508,6 +2594,7 @@ function bindEvents() {
 }
 
 loadState();
+initializeHistory();
 bindEvents();
 setToday();
 els.expenseCurrency.value = state.settlementCurrency;

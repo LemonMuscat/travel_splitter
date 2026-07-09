@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-title" content="Travel Split" />
 
-    <link rel="stylesheet" href="./styles.css?v=59" />
+    <link rel="stylesheet" href="./styles.css?v=60" />
   </head>
   <body>
     <div class="app-shell" data-active-tab="expenses">
@@ -24,6 +24,8 @@
           <p class="app-subtitle" id="appSubtitle">정산 기록을 불러오는 중입니다.</p>
         </div>
         <div class="top-actions">
+          <button class="icon-button" id="undoButton" type="button" title="실행 취소 (Cmd/Ctrl + Z)" aria-label="실행 취소" disabled>↶</button>
+          <button class="icon-button" id="redoButton" type="button" title="다시 실행 (Cmd/Ctrl + Shift + Z)" aria-label="다시 실행" disabled>↷</button>
           <button class="icon-button" id="resetButton" type="button" title="초기화" aria-label="초기화">↺</button>
         </div>
       </header>
@@ -322,6 +324,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=59"></script>
+    <script src="./app.js?v=60"></script>
   </body>
 </html>
