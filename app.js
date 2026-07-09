@@ -875,20 +875,18 @@ function renderPaymentTable({ total, sharedTotal, personalTotal, balances, paid,
     const balance = balances[name] || 0;
     const row = document.createElement("div");
     row.className = `payment-row ${balance > 0 ? "is-creditor" : ""}`;
-    const status = settlementStatus(balance);
     [
       name,
       formatMoney(paid[name] || 0),
       formatSettlementMoney(sharedOwed[name] || 0),
       formatSettlementMoney(personalOwed[name] || 0),
-      status,
     ].forEach((value, index) => {
       const cellEl = document.createElement(index === 0 ? "strong" : "span");
       cellEl.textContent = value;
       if (index === 3) cellEl.className = "amount-personal";
-      if (index === 4) cellEl.className = `payment-status ${balance > 0 ? "amount-positive" : balance < 0 ? "amount-negative" : ""}`;
       row.append(cellEl);
     });
+    row.append(createSettlementStatusCell(balance));
     els.paymentTable.append(row);
   });
 
@@ -907,6 +905,21 @@ function settlementStatus(balance) {
   if (balance > 0) return "정산 받을 사람";
   if (balance < 0) return `보낼 금액 ${formatSettlementMoney(Math.abs(balance))}`;
   return "정산 완료";
+}
+
+function createSettlementStatusCell(balance) {
+  const cell = document.createElement("span");
+  cell.className = `payment-status ${balance > 0 ? "amount-positive" : balance < 0 ? "amount-negative" : ""}`;
+  if (balance < 0) {
+    const label = document.createElement("small");
+    const amount = document.createElement("strong");
+    label.textContent = "보낼 금액";
+    amount.textContent = formatSettlementMoney(Math.abs(balance));
+    cell.append(label, amount);
+  } else {
+    cell.textContent = settlementStatus(balance);
+  }
+  return cell;
 }
 
 function accountText() {
@@ -2189,19 +2202,19 @@ function exportSettlementImage() {
   drawText(ctx, `공동 부담 ${formatSettlementMoney(sharedTotal)} · 개인 부담 ${formatSettlementMoney(personalTotal)}`, 96, 278, 20, 800, "#536477");
 
   drawText(ctx, "이름", 96, startY, 19, 800, "#65717d");
-  drawRightText(ctx, "결제", 420, startY, 19, 800, "#65717d");
-  drawRightText(ctx, "공동", 590, startY, 19, 800, "#65717d");
-  drawRightText(ctx, "개인", 750, startY, 19, 800, "#65717d");
-  drawRightText(ctx, "정산", 930, startY, 19, 800, "#65717d");
+  drawRightText(ctx, "결제", 380, startY, 19, 800, "#65717d");
+  drawRightText(ctx, "공동", 535, startY, 19, 800, "#65717d");
+  drawRightText(ctx, "개인", 690, startY, 19, 800, "#65717d");
+  drawRightText(ctx, "정산", 870, startY, 19, 800, "#65717d");
   state.people.forEach((name, index) => {
     const y = startY + 42 + index * rowHeight;
     const balance = balances[name] || 0;
     if (balance > 0) roundRect(ctx, 82, y - 35, width - 164, 68, 0, "#e8f8f1");
     drawText(ctx, name, 96, y, 27, 900);
-    drawRightText(ctx, formatMoney(paid[name] || 0), 420, y, 21, 850);
-    drawRightText(ctx, formatSettlementMoney(sharedOwed[name] || 0), 590, y, 21, 850);
-    drawRightText(ctx, formatSettlementMoney(personalOwed[name] || 0), 750, y, 21, 850, personalOwed[name] ? "#7a42d4" : "#65717d");
-    drawRightText(ctx, settlementStatus(balance), 930, y, 20, 900, balance > 0 ? "#0f8a61" : balance < 0 ? "#e3343f" : "#65717d");
+    drawRightText(ctx, formatMoney(paid[name] || 0), 380, y, 21, 850);
+    drawRightText(ctx, formatSettlementMoney(sharedOwed[name] || 0), 535, y, 21, 850);
+    drawRightText(ctx, formatSettlementMoney(personalOwed[name] || 0), 690, y, 21, 850, personalOwed[name] ? "#7a42d4" : "#65717d");
+    drawSettlementStatus(ctx, balance, 870, y);
   });
 
   drawText(ctx, "🏦 보내실 곳", 96, accountY, 24, 850, "#65717d");
@@ -2257,6 +2270,15 @@ function drawRightText(ctx, text, rightX, y, size, weight = 700, color = "#17202
   ctx.fillStyle = color;
   ctx.font = `${weight} ${size}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
   ctx.fillText(text, rightX - ctx.measureText(text).width, y);
+}
+
+function drawSettlementStatus(ctx, balance, rightX, y) {
+  if (balance < 0) {
+    drawRightText(ctx, "보낼 금액", rightX, y - 12, 14, 850, "#e3343f");
+    drawRightText(ctx, formatSettlementMoney(Math.abs(balance)), rightX, y + 15, 23, 950, "#e3343f");
+    return;
+  }
+  drawRightText(ctx, settlementStatus(balance), rightX, y + 5, 18, 900, balance > 0 ? "#0f8a61" : "#65717d");
 }
 
 function truncateText(ctx, text, maxWidth) {
