@@ -1224,6 +1224,20 @@ textarea:focus {
   margin-bottom: 14px;
 }
 
+.share-token-field {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.share-token-field input {
+  width: 100%;
+  min-width: 0;
+}
+
 .settle-actions button,
 .import-data-button {
   display: grid;

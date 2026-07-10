@@ -7,6 +7,7 @@ const DEFAULT_PEOPLE = ["나", "동행 1"];
 const KRW_SETTLEMENT_ROUND_UNIT = 10;
 const MAX_HISTORY_STEPS = 60;
 const BACKUP_VERSION = 2;
+const SHARE_API_URL = "https://travel-share-api.hasebin.workers.dev";
 const DEFAULT_ACCOUNT = {
   bank: "",
   number: "",
@@ -109,6 +110,7 @@ const els = {
   exportDataButton: document.querySelector("#exportDataButton"),
   dataFileInput: document.querySelector("#dataFileInput"),
   shareButton: document.querySelector("#shareButton"),
+  shareCreateToken: document.querySelector("#shareCreateToken"),
   shareBox: document.querySelector("#shareBox"),
   shareUrl: document.querySelector("#shareUrl"),
   shareStatus: document.querySelector("#shareStatus"),
@@ -300,8 +302,8 @@ function redoState() {
   restoreHistorySnapshot(snapshot);
 }
 
-function loadState() {
-  const shared = readSharedState();
+async function loadState() {
+  const shared = await readSharedState();
   if (shared) {
     appState.trips = [normalizeTrip(shared)];
     appState.activeTripId = appState.trips[0].id;
@@ -331,10 +333,24 @@ function loadState() {
   setActiveTrip(appState.activeTripId);
 }
 
-function readSharedState() {
-  const match = location.hash.match(/share=([^&]+)/);
-  if (!match) return null;
-  const encoded = match[1];
+async function readSharedState() {
+  const params = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const shareId = params.get("s");
+  const shareKey = params.get("k");
+  if (shareId && shareKey) {
+    try {
+      const response = await fetch(`${SHARE_API_URL}/shares/${encodeURIComponent(shareId)}`);
+      if (!response.ok) throw new Error(response.status === 404 ? "공유 링크가 없거나 만료되었습니다." : "공유 기록을 불러오지 못했습니다.");
+      const stored = await response.json();
+      return expandCompactShare(await decryptRemoteShare(stored, shareKey));
+    } catch (error) {
+      alert(error?.message || "공유 링크를 열지 못했습니다.");
+      return null;
+    }
+  }
+
+  const encoded = params.get("share");
+  if (!encoded) return null;
   try {
     if (encoded.startsWith("v2.") && window.LZString) {
       const payload = window.LZString.decompressFromEncodedURIComponent(encoded.slice(3));
@@ -343,6 +359,61 @@ function readSharedState() {
     return JSON.parse(decodeURIComponent(escape(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")))));
   } catch {
     return null;
+  }
+}
+
+function bytesToBase64Url(bytes) {
+  let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function base64UrlToBytes(value) {
+  const normalized = String(value).replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  const binary = atob(padded);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+async function encryptRemoteShare(payload) {
+  if (!window.crypto?.subtle) throw new Error("이 브라우저에서는 안전한 공유 링크를 만들 수 없습니다.");
+  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const plaintext = new TextEncoder().encode(JSON.stringify(payload));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext);
+  const rawKey = await crypto.subtle.exportKey("raw", key);
+  return {
+    key: bytesToBase64Url(new Uint8Array(rawKey)),
+    payload: `${bytesToBase64Url(iv)}.${bytesToBase64Url(new Uint8Array(encrypted))}`,
+  };
+}
+
+async function decryptRemoteShare(stored, encodedKey) {
+  if (!window.crypto?.subtle) throw new Error("이 브라우저에서는 암호화된 공유 링크를 열 수 없습니다.");
+  const payload = typeof stored === "string"
+    ? stored
+    : stored?.payload || stored?.ciphertext || stored?.data || stored?.value;
+  if (typeof payload !== "string") throw new Error("공유 데이터 형식이 올바르지 않습니다.");
+  const envelope = payload.includes(".") ? payload : (() => {
+    try {
+      const parsed = JSON.parse(payload);
+      return parsed.payload || parsed.ciphertext || parsed.data || "";
+    } catch {
+      return "";
+    }
+  })();
+  const [encodedIv, encodedCiphertext] = envelope.split(".");
+  if (!encodedIv || !encodedCiphertext) throw new Error("공유 데이터 형식이 올바르지 않습니다.");
+  try {
+    const key = await crypto.subtle.importKey("raw", base64UrlToBytes(encodedKey), { name: "AES-GCM" }, false, ["decrypt"]);
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: base64UrlToBytes(encodedIv) },
+      key,
+      base64UrlToBytes(encodedCiphertext),
+    );
+    return JSON.parse(new TextDecoder().decode(decrypted));
+  } catch {
+    throw new Error("공유 링크의 암호키가 올바르지 않거나 데이터가 손상되었습니다.");
   }
 }
 
@@ -419,6 +490,27 @@ function encodeShare() {
   }
   const payload = JSON.stringify(state);
   return btoa(unescape(encodeURIComponent(payload))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function createRemoteShare(createToken) {
+  const encrypted = await encryptRemoteShare(compactSharePayload());
+  const response = await fetch(`${SHARE_API_URL}/shares`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Create-Token": createToken,
+    },
+    body: JSON.stringify({
+      payload: encrypted.payload,
+      ciphertext: encrypted.payload,
+      data: encrypted.payload,
+    }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || "짧은 공유 링크를 만들지 못했습니다.");
+  const shareId = result.id || result.shareId || result.s || result.key;
+  if (!shareId) throw new Error("Worker 응답에 공유 ID가 없습니다.");
+  return { shareId, key: encrypted.key };
 }
 
 function rateOf(currency) {
@@ -2664,13 +2756,36 @@ function bindEvents() {
       document.querySelector(".app-shell").dataset.activeTab = tab.dataset.tab;
     });
   });
-  els.shareButton.addEventListener("click", () => {
+  els.shareButton.addEventListener("click", async () => {
     const baseUrl = location.origin === "null" ? location.href.split("#")[0] : `${location.origin}${location.pathname}`;
-    const url = `${baseUrl}#share=${encodeShare()}`;
-    els.shareUrl.value = url;
+    const createToken = els.shareCreateToken.value.trim();
+    if (!createToken) {
+      els.shareCreateToken.setCustomValidity("공유 생성 비밀번호를 입력하세요.");
+      els.shareCreateToken.reportValidity();
+      els.shareCreateToken.focus();
+      return;
+    }
+    els.shareCreateToken.setCustomValidity("");
     els.shareBox.hidden = false;
-    els.shareStatus.textContent = "압축된 링크이며 만료되지 않습니다. 링크를 가진 사람은 정산 내역과 입력한 계좌를 볼 수 있습니다.";
+    els.shareUrl.value = "";
+    els.shareButton.disabled = true;
+    const originalLabel = els.shareButton.textContent;
+    els.shareButton.textContent = "암호화 중...";
+    els.shareStatus.textContent = "정산 데이터를 암호화해 짧은 링크를 만드는 중입니다.";
+    try {
+      const shared = await createRemoteShare(createToken);
+      els.shareUrl.value = `${baseUrl}#s=${encodeURIComponent(shared.shareId)}&k=${encodeURIComponent(shared.key)}`;
+      els.shareStatus.textContent = "암호화된 짧은 링크입니다. 링크를 가진 사람만 내용을 열 수 있습니다.";
+    } catch (error) {
+      els.shareUrl.value = `${baseUrl}#share=${encodeShare()}`;
+      els.shareStatus.textContent = `${error?.message || "짧은 링크 생성에 실패했습니다."} 압축 링크를 대신 만들었습니다.`;
+    } finally {
+      els.shareCreateToken.value = "";
+      els.shareButton.disabled = false;
+      els.shareButton.textContent = originalLabel;
+    }
   });
+  els.shareCreateToken.addEventListener("input", () => els.shareCreateToken.setCustomValidity(""));
   els.copyButton.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(els.shareUrl.value);
@@ -2719,9 +2834,16 @@ function bindEvents() {
   });
 }
 
-loadState();
-initializeHistory();
-bindEvents();
-setToday();
-els.expenseCurrency.value = state.settlementCurrency;
+async function initializeApp() {
+  await loadState();
+  initializeHistory();
+  bindEvents();
+  setToday();
+  els.expenseCurrency.value = state.settlementCurrency;
+}
+
+initializeApp().catch((error) => {
+  console.error(error);
+  alert("앱을 시작하지 못했습니다. 새로고침 후 다시 시도하세요.");
+});
 render();

@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-title" content="Travel Split" />
 
-    <link rel="stylesheet" href="./styles.css?v=64" />
+    <link rel="stylesheet" href="./styles.css?v=65" />
   </head>
   <body>
     <div class="app-shell" data-active-tab="expenses">
@@ -254,6 +254,10 @@
               </div>
             </div>
             <div class="settle-actions">
+              <label class="share-token-field" for="shareCreateToken">
+                <span>공유 생성 비밀번호</span>
+                <input id="shareCreateToken" type="password" autocomplete="off" placeholder="Cloudflare Worker에 설정한 비밀번호" />
+              </label>
               <button class="primary-button" id="shareButton" type="button">정산 링크 만들기</button>
               <button id="exportImageButton" type="button">전체 이미지 저장</button>
               <button id="exportDataButton" type="button">기록 파일 저장</button>
@@ -323,6 +327,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="./vendor/lz-string.min.js"></script>
-    <script src="./app.js?v=64"></script>
+    <script src="./app.js?v=65"></script>
   </body>
 </html>
