@@ -384,25 +384,20 @@ async function encryptRemoteShare(payload) {
   const rawKey = await crypto.subtle.exportKey("raw", key);
   return {
     key: bytesToBase64Url(new Uint8Array(rawKey)),
-    payload: `${bytesToBase64Url(iv)}.${bytesToBase64Url(new Uint8Array(encrypted))}`,
+    iv: bytesToBase64Url(iv),
+    ciphertext: bytesToBase64Url(new Uint8Array(encrypted)),
   };
 }
 
 async function decryptRemoteShare(stored, encodedKey) {
   if (!window.crypto?.subtle) throw new Error("이 브라우저에서는 암호화된 공유 링크를 열 수 없습니다.");
-  const payload = typeof stored === "string"
-    ? stored
-    : stored?.payload || stored?.ciphertext || stored?.data || stored?.value;
-  if (typeof payload !== "string") throw new Error("공유 데이터 형식이 올바르지 않습니다.");
-  const envelope = payload.includes(".") ? payload : (() => {
-    try {
-      const parsed = JSON.parse(payload);
-      return parsed.payload || parsed.ciphertext || parsed.data || "";
-    } catch {
-      return "";
-    }
-  })();
-  const [encodedIv, encodedCiphertext] = envelope.split(".");
+  let encryptedData = stored?.data && typeof stored.data === "object" ? stored.data : stored;
+  if (typeof encryptedData === "string") {
+    const [iv, ciphertext] = encryptedData.split(".");
+    encryptedData = { iv, ciphertext };
+  }
+  const encodedIv = encryptedData?.iv;
+  const encodedCiphertext = encryptedData?.ciphertext;
   if (!encodedIv || !encodedCiphertext) throw new Error("공유 데이터 형식이 올바르지 않습니다.");
   try {
     const key = await crypto.subtle.importKey("raw", base64UrlToBytes(encodedKey), { name: "AES-GCM" }, false, ["decrypt"]);
@@ -501,9 +496,10 @@ async function createRemoteShare(createToken) {
       "X-Create-Token": createToken,
     },
     body: JSON.stringify({
-      payload: encrypted.payload,
-      ciphertext: encrypted.payload,
-      data: encrypted.payload,
+      data: {
+        iv: encrypted.iv,
+        ciphertext: encrypted.ciphertext,
+      },
     }),
   });
   const result = await response.json().catch(() => ({}));
@@ -2775,7 +2771,7 @@ function bindEvents() {
     try {
       const shared = await createRemoteShare(createToken);
       els.shareUrl.value = `${baseUrl}#s=${encodeURIComponent(shared.shareId)}&k=${encodeURIComponent(shared.key)}`;
-      els.shareStatus.textContent = "암호화된 짧은 링크입니다. 링크를 가진 사람만 내용을 열 수 있습니다.";
+      els.shareStatus.textContent = "암호화된 짧은 링크입니다. 현재 설정상 30일 동안 열 수 있습니다.";
     } catch (error) {
       els.shareUrl.value = `${baseUrl}#share=${encodeShare()}`;
       els.shareStatus.textContent = `${error?.message || "짧은 링크 생성에 실패했습니다."} 압축 링크를 대신 만들었습니다.`;
