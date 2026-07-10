@@ -6,6 +6,7 @@ const DATE_COLORS = ["#ffb000", "#4aa3f0", "#8b5cf6", "#0f8a61", "#f97316", "#ec
 const DEFAULT_PEOPLE = ["나", "동행 1"];
 const KRW_SETTLEMENT_ROUND_UNIT = 10;
 const MAX_HISTORY_STEPS = 60;
+const BACKUP_VERSION = 2;
 const DEFAULT_ACCOUNT = {
   bank: "",
   number: "",
@@ -212,6 +213,7 @@ function normalizeExpense(expense, trip = state) {
     amount: Number(expense.amount) || 0,
     currency: CURRENCIES.includes(fallbackCurrency) ? fallbackCurrency : "KRW",
     convertedAmountKrw: Number(expense.convertedAmountKrw) > 0 ? Number(expense.convertedAmountKrw) : null,
+    conversionFixed: Boolean(expense.conversionFixed),
     date: expense.date || trip.tripDate || new Date().toISOString().slice(0, 10),
     time: normalizeTime(expense.time),
     payer: trip.people.includes(expense.payer) ? expense.payer : trip.people[0],
@@ -360,7 +362,7 @@ function rateOf(currency) {
 }
 
 function toSettlementAmount(expense) {
-  const amountInKrw = Number(expense.convertedAmountKrw) > 0
+  const amountInKrw = expense.conversionFixed && Number(expense.convertedAmountKrw) > 0
     ? Number(expense.convertedAmountKrw)
     : Number(expense.amount) * rateOf(expense.currency);
   return amountInKrw / rateOf(state.settlementCurrency);
@@ -535,6 +537,10 @@ function expenseBurdenMode(expense) {
 
 function isPersonalExpense(expense) {
   return expenseShareEntries(expense).length === 1;
+}
+
+function personalExpenseOwner(expense) {
+  return expenseShareEntries(expense)[0]?.name || "개인";
 }
 
 function splitLabel(expense) {
@@ -757,13 +763,21 @@ function renderExpenses() {
   const groups = personalExpenses.length
     ? [
       { title: "🤝 공동 부담 내역", description: "함께 나누는 결제", expenses: sharedExpenses },
-      { title: "👤 개인 부담 내역", description: "지정한 사람만 부담하는 결제", expenses: personalExpenses },
+      ...state.people.map((person) => {
+        const expenses = personalExpenses.filter((expense) => personalExpenseOwner(expense) === person);
+        return {
+          title: `👤 개인 부담 내역 · ${person}`,
+          description: `${person}만 부담하는 결제`,
+          expenses,
+          personal: true,
+        };
+      }),
     ].filter((group) => group.expenses.length)
     : [{ title: "", description: "", expenses: sortedExpenses }];
 
   groups.forEach((group) => {
     const section = document.createElement("section");
-    section.className = "expense-group";
+    section.className = `expense-group${group.personal ? " is-personal-group" : ""}`;
     if (group.title) {
       const head = document.createElement("div");
       head.className = "expense-group-head";
@@ -1091,8 +1105,14 @@ function createExpenseEditor(expense, category) {
   convertedInput.step = "1";
   convertedInput.value = expense.currency === "KRW"
     ? ""
-    : Math.round(Number(expense.convertedAmountKrw) > 0 ? Number(expense.convertedAmountKrw) : Number(expense.amount) * rateOf(expense.currency));
-  convertedInput.placeholder = "원화 환산액";
+    : Math.round(expense.conversionFixed && Number(expense.convertedAmountKrw) > 0
+      ? Number(expense.convertedAmountKrw)
+      : Number(expense.amount) * rateOf(expense.currency));
+  convertedInput.placeholder = "원화 환산액 · 직접 수정 시 고정";
+  convertedInput.dataset.userEdited = "false";
+  convertedInput.addEventListener("input", () => {
+    convertedInput.dataset.userEdited = "true";
+  });
 
   const payerSelect = document.createElement("select");
   payerSelect.className = "expense-edit-payer";
@@ -1194,7 +1214,10 @@ function saveExpenseEdit(id, row) {
 
   const currency = CURRENCIES.includes(currencySelect.value) ? currencySelect.value : "KRW";
   const amount = Number(amountInput.value) || 0;
-  const convertedAmountKrw = currency === "KRW" ? null : Number(convertedInput.value) || null;
+  const currentExpense = state.expenses.find((item) => item.id === id);
+  const keepsFixedConversion = currentExpense?.currency === currency && currentExpense.conversionFixed;
+  const conversionFixed = currency !== "KRW" && (keepsFixedConversion || convertedInput.dataset.userEdited === "true");
+  const convertedAmountKrw = conversionFixed ? Number(convertedInput.value) || null : null;
   const shares = Object.fromEntries([...row.querySelectorAll(".expense-share-input")]
     .map((input) => [input.dataset.person, Number(input.value) || 0])
     .filter(([name, value]) => state.people.includes(name) && value > 0));
@@ -1214,6 +1237,7 @@ function saveExpenseEdit(id, row) {
       amount,
       currency,
       convertedAmountKrw,
+      conversionFixed,
       payer: payerSelect.value,
       category: normalizeCategoryInput(categoryInput.value),
       date: normalizeDateInput(dateInput.value) || item.date,
@@ -2210,7 +2234,8 @@ async function copyAccount() {
 }
 
 function exportDataFile() {
-  const blob = new Blob([JSON.stringify(appState, null, 2)], { type: "application/json" });
+  const backup = { version: BACKUP_VERSION, ...appState };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
   downloadBlob(blob, `${safeFileName(state.tripName)}-travel-splitter.json`);
 }
 
@@ -2239,7 +2264,10 @@ function exportSettlementImage() {
   const sortedExpenses = getSortedExpenses();
   const sharedExpenses = sortedExpenses.filter((expense) => !isPersonalExpense(expense));
   const personalExpenses = sortedExpenses.filter(isPersonalExpense);
-  const expenses = [...sharedExpenses, ...personalExpenses];
+  const personalGroups = state.people
+    .map((person) => ({ person, expenses: personalExpenses.filter((expense) => personalExpenseOwner(expense) === person) }))
+    .filter((group) => group.expenses.length);
+  const expenses = [...sharedExpenses, ...personalGroups.flatMap((group) => group.expenses)];
   const width = 1080;
   const rowHeight = 88;
   const expenseRowHeight = 108;
@@ -2249,7 +2277,7 @@ function exportSettlementImage() {
   const accountY = headerTop + settlementCardHeight + 48;
   const expenseTitleY = accountY + 150;
   const expenseStartY = expenseTitleY + 46;
-  const personalSectionHeight = personalExpenses.length ? 58 : 0;
+  const personalSectionHeight = personalGroups.length * 58;
   const footerY = expenseStartY + Math.max(expenses.length, 1) * expenseRowHeight + personalSectionHeight + 36;
   const height = footerY + 80;
   const scale = 2;
@@ -2297,11 +2325,16 @@ function exportSettlementImage() {
     drawText(ctx, "아직 결제 내역이 없습니다.", 124, expenseStartY + 9, 22, 750, "#65717d");
   } else {
     let y = expenseStartY;
+    let personalGroupIndex = 0;
+    let nextPersonalGroupStart = sharedExpenses.length;
     expenses.forEach((expense, index) => {
-      if (personalExpenses.length && index === sharedExpenses.length) {
-        drawText(ctx, "👤 개인 부담 내역", 96, y + 4, 26, 900, "#7a42d4");
-        drawText(ctx, `${personalExpenses.length}건 · 지정한 사람만 부담`, 350, y + 4, 18, 750, "#65717d");
-        y += personalSectionHeight;
+      if (personalGroupIndex < personalGroups.length && index === nextPersonalGroupStart) {
+        const group = personalGroups[personalGroupIndex];
+        drawText(ctx, `👤 개인 부담 내역 · ${group.person}`, 96, y + 4, 26, 900, "#7a42d4");
+        drawText(ctx, `${group.person}만 부담 · ${group.expenses.length}건`, 390, y + 4, 18, 750, "#65717d");
+        y += 58;
+        nextPersonalGroupStart += group.expenses.length;
+        personalGroupIndex += 1;
       }
       const included = expense.included !== false;
       const category = categoryLabel(expense.category);

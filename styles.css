@@ -666,7 +666,7 @@ textarea:focus {
   font-weight: 800;
 }
 
-.expense-group:last-child .expense-group-head h3 {
+.expense-group.is-personal-group .expense-group-head h3 {
   color: #7a42d4;
 }
 
