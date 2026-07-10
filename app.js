@@ -113,6 +113,7 @@ const els = {
   shareUrl: document.querySelector("#shareUrl"),
   shareStatus: document.querySelector("#shareStatus"),
   copyButton: document.querySelector("#copyButton"),
+  nativeShareButton: document.querySelector("#nativeShareButton"),
   undoButton: document.querySelector("#undoButton"),
   redoButton: document.querySelector("#redoButton"),
   resetButton: document.querySelector("#resetButton"),
@@ -333,25 +334,90 @@ function loadState() {
 function readSharedState() {
   const match = location.hash.match(/share=([^&]+)/);
   if (!match) return null;
+  const encoded = match[1];
   try {
-    return JSON.parse(decodeURIComponent(escape(atob(match[1].replace(/-/g, "+").replace(/_/g, "/")))));
+    if (encoded.startsWith("v2.") && window.LZString) {
+      const payload = window.LZString.decompressFromEncodedURIComponent(encoded.slice(3));
+      return expandCompactShare(JSON.parse(payload));
+    }
+    return JSON.parse(decodeURIComponent(escape(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")))));
   } catch {
     return null;
   }
 }
 
+function compactSharePayload() {
+  return {
+    v: 2,
+    n: state.tripName,
+    d: state.tripDate,
+    s: state.tripStartDate,
+    e: state.tripEndDate,
+    c: state.settlementCurrency,
+    r: CURRENCIES.map((currency) => state.rates[currency] || DEFAULT_RATES[currency]),
+    p: state.people,
+    a: [state.account.bank, state.account.number, state.account.holder],
+    x: state.expenses.map((expense) => [
+      expense.title,
+      expense.amount,
+      expense.currency,
+      expense.convertedAmountKrw || 0,
+      expense.conversionFixed ? 1 : 0,
+      expense.date,
+      expense.time || "",
+      expense.payer,
+      expense.category || "",
+      expense.included === false ? 0 : 1,
+      expense.review ? 1 : 0,
+      expense.participants || [],
+      expense.shares || 0,
+    ]),
+  };
+}
+
+function expandCompactShare(payload) {
+  if (payload?.v !== 2) return payload;
+  const rates = Object.fromEntries(CURRENCIES.map((currency, index) => [
+    currency,
+    Number(payload.r?.[index]) || DEFAULT_RATES[currency],
+  ]));
+  return {
+    tripName: payload.n,
+    tripDate: payload.d,
+    tripStartDate: payload.s,
+    tripEndDate: payload.e,
+    settlementCurrency: payload.c,
+    rates,
+    people: payload.p,
+    account: {
+      bank: payload.a?.[0] || "",
+      number: payload.a?.[1] || "",
+      holder: payload.a?.[2] || "",
+    },
+    expenses: Array.isArray(payload.x) ? payload.x.map((expense) => ({
+      title: expense[0],
+      amount: expense[1],
+      currency: expense[2],
+      convertedAmountKrw: expense[3] || null,
+      conversionFixed: Boolean(expense[4]),
+      date: expense[5],
+      time: expense[6],
+      payer: expense[7],
+      category: expense[8],
+      included: expense[9] !== 0,
+      review: Boolean(expense[10]),
+      participants: expense[11],
+      shares: expense[12] || null,
+    })) : [],
+  };
+}
+
 function encodeShare() {
-  const payload = JSON.stringify({
-    tripName: state.tripName,
-    tripDate: state.tripDate,
-    tripStartDate: state.tripStartDate,
-    tripEndDate: state.tripEndDate,
-    settlementCurrency: state.settlementCurrency,
-    rates: state.rates,
-    people: state.people,
-    account: state.account,
-    expenses: state.expenses,
-  });
+  const compactPayload = JSON.stringify(compactSharePayload());
+  if (window.LZString) {
+    return `v2.${window.LZString.compressToEncodedURIComponent(compactPayload)}`;
+  }
+  const payload = JSON.stringify(state);
   return btoa(unescape(encodeURIComponent(payload))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
@@ -2603,7 +2669,7 @@ function bindEvents() {
     const url = `${baseUrl}#share=${encodeShare()}`;
     els.shareUrl.value = url;
     els.shareBox.hidden = false;
-    els.shareStatus.textContent = "이 링크를 보내야 현재 입력한 정산 기록까지 같이 보입니다.";
+    els.shareStatus.textContent = "압축된 링크이며 만료되지 않습니다. 링크를 가진 사람은 정산 내역과 입력한 계좌를 볼 수 있습니다.";
   });
   els.copyButton.addEventListener("click", async () => {
     try {
@@ -2612,6 +2678,21 @@ function bindEvents() {
     } catch {
       els.shareUrl.select();
       els.shareStatus.textContent = "선택된 링크를 복사하세요.";
+    }
+  });
+  els.nativeShareButton.hidden = typeof navigator.share !== "function";
+  els.nativeShareButton.closest(".share-actions")?.classList.toggle("is-single", els.nativeShareButton.hidden);
+  els.nativeShareButton.addEventListener("click", async () => {
+    if (typeof navigator.share !== "function" || !els.shareUrl.value) return;
+    try {
+      await navigator.share({
+        title: `${state.tripName} 정산`,
+        text: "정산 내역과 보낼 금액을 확인하세요.",
+        url: els.shareUrl.value,
+      });
+      els.shareStatus.textContent = "공유 화면을 열었습니다.";
+    } catch (error) {
+      if (error?.name !== "AbortError") els.shareStatus.textContent = "공유하지 못했습니다. 링크 복사를 이용하세요.";
     }
   });
   els.resetButton.addEventListener("click", () => {

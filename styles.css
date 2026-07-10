@@ -400,6 +400,20 @@ textarea:focus {
   font-weight: 800;
 }
 
+.share-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.share-actions button[hidden] {
+  display: none;
+}
+
+.share-actions.is-single {
+  grid-template-columns: 1fr;
+}
+
 .content-panel {
   min-width: 0;
   overflow: hidden;

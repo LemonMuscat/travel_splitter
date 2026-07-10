@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-title" content="Travel Split" />
 
-    <link rel="stylesheet" href="./styles.css?v=63" />
+    <link rel="stylesheet" href="./styles.css?v=64" />
   </head>
   <body>
     <div class="app-shell" data-active-tab="expenses">
@@ -267,7 +267,10 @@
                 <p id="shareStatus">링크가 만들어졌습니다.</p>
               </div>
               <input id="shareUrl" readonly />
-              <button id="copyButton" type="button">복사</button>
+              <div class="share-actions">
+                <button id="copyButton" type="button">링크 복사</button>
+                <button id="nativeShareButton" type="button">바로 공유</button>
+              </div>
             </div>
             <div class="settle-grid">
               <div>
@@ -319,6 +322,7 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=63"></script>
+    <script src="./vendor/lz-string.min.js"></script>
+    <script src="./app.js?v=64"></script>
   </body>
 </html>
