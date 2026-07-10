@@ -2836,10 +2836,10 @@ async function initializeApp() {
   bindEvents();
   setToday();
   els.expenseCurrency.value = state.settlementCurrency;
+  render();
 }
 
 initializeApp().catch((error) => {
   console.error(error);
   alert("앱을 시작하지 못했습니다. 새로고침 후 다시 시도하세요.");
 });
-render();
