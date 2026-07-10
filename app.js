@@ -8,6 +8,7 @@ const KRW_SETTLEMENT_ROUND_UNIT = 10;
 const MAX_HISTORY_STEPS = 60;
 const BACKUP_VERSION = 2;
 const SHARE_API_URL = "https://travel-share-api.hasebin.workers.dev";
+const SHARE_CREATE_TOKEN_KEY = "travel-splitter-share-create-token";
 const DEFAULT_ACCOUNT = {
   bank: "",
   number: "",
@@ -110,7 +111,6 @@ const els = {
   exportDataButton: document.querySelector("#exportDataButton"),
   dataFileInput: document.querySelector("#dataFileInput"),
   shareButton: document.querySelector("#shareButton"),
-  shareCreateToken: document.querySelector("#shareCreateToken"),
   shareBox: document.querySelector("#shareBox"),
   shareUrl: document.querySelector("#shareUrl"),
   shareStatus: document.querySelector("#shareStatus"),
@@ -503,10 +503,36 @@ async function createRemoteShare(createToken) {
     }),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "짧은 공유 링크를 만들지 못했습니다.");
+  if (!response.ok) {
+    const error = new Error(result.error || "짧은 공유 링크를 만들지 못했습니다.");
+    error.status = response.status;
+    throw error;
+  }
   const shareId = result.id || result.shareId || result.s || result.key;
   if (!shareId) throw new Error("Worker 응답에 공유 ID가 없습니다.");
   return { shareId, key: encrypted.key };
+}
+
+function rememberShareCreateToken(message = "짧은 공유 링크를 만들기 위한 비밀번호를 한 번만 입력하세요. 이 기기에 저장되며 공유 링크나 GitHub 코드에는 포함되지 않습니다.") {
+  const token = window.prompt(message)?.trim() || "";
+  if (token) localStorage.setItem(SHARE_CREATE_TOKEN_KEY, token);
+  return token;
+}
+
+async function createRememberedRemoteShare() {
+  let createToken = localStorage.getItem(SHARE_CREATE_TOKEN_KEY)?.trim() || "";
+  if (!createToken) createToken = rememberShareCreateToken();
+  if (!createToken) throw new Error("공유 생성을 취소했습니다.");
+
+  try {
+    return await createRemoteShare(createToken);
+  } catch (error) {
+    if (![401, 403].includes(error?.status)) throw error;
+    localStorage.removeItem(SHARE_CREATE_TOKEN_KEY);
+    createToken = rememberShareCreateToken("저장된 공유 비밀번호가 만료되었거나 변경되었습니다. 새 비밀번호를 입력하세요.");
+    if (!createToken) throw new Error("공유 생성을 취소했습니다.");
+    return createRemoteShare(createToken);
+  }
 }
 
 function rateOf(currency) {
@@ -2754,14 +2780,6 @@ function bindEvents() {
   });
   els.shareButton.addEventListener("click", async () => {
     const baseUrl = location.origin === "null" ? location.href.split("#")[0] : `${location.origin}${location.pathname}`;
-    const createToken = els.shareCreateToken.value.trim();
-    if (!createToken) {
-      els.shareCreateToken.setCustomValidity("공유 생성 비밀번호를 입력하세요.");
-      els.shareCreateToken.reportValidity();
-      els.shareCreateToken.focus();
-      return;
-    }
-    els.shareCreateToken.setCustomValidity("");
     els.shareBox.hidden = false;
     els.shareUrl.value = "";
     els.shareButton.disabled = true;
@@ -2769,19 +2787,17 @@ function bindEvents() {
     els.shareButton.textContent = "암호화 중...";
     els.shareStatus.textContent = "정산 데이터를 암호화해 짧은 링크를 만드는 중입니다.";
     try {
-      const shared = await createRemoteShare(createToken);
+      const shared = await createRememberedRemoteShare();
       els.shareUrl.value = `${baseUrl}#s=${encodeURIComponent(shared.shareId)}&k=${encodeURIComponent(shared.key)}`;
       els.shareStatus.textContent = "암호화된 짧은 링크입니다. 현재 설정상 30일 동안 열 수 있습니다.";
     } catch (error) {
       els.shareUrl.value = `${baseUrl}#share=${encodeShare()}`;
       els.shareStatus.textContent = `${error?.message || "짧은 링크 생성에 실패했습니다."} 압축 링크를 대신 만들었습니다.`;
     } finally {
-      els.shareCreateToken.value = "";
       els.shareButton.disabled = false;
       els.shareButton.textContent = originalLabel;
     }
   });
-  els.shareCreateToken.addEventListener("input", () => els.shareCreateToken.setCustomValidity(""));
   els.copyButton.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(els.shareUrl.value);
