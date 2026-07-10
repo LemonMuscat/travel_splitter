@@ -1060,6 +1060,8 @@ textarea:focus {
 
 .settlement-report {
   display: grid;
+  min-width: 0;
+  max-width: 100%;
   gap: 16px;
   border: 2px solid var(--accent);
   border-radius: 18px;
@@ -1071,6 +1073,7 @@ textarea:focus {
 
 .report-head {
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
@@ -1078,6 +1081,7 @@ textarea:focus {
 
 .report-head h2 {
   font-size: 30px;
+  overflow-wrap: anywhere;
 }
 
 .report-head > span {
@@ -1089,6 +1093,8 @@ textarea:focus {
 
 .payment-table {
   width: min(100%, 1080px);
+  min-width: 0;
+  max-width: 100%;
   gap: 0;
 }
 
@@ -1179,6 +1185,8 @@ textarea:focus {
 
 .send-to-card {
   display: grid;
+  min-width: 0;
+  max-width: 100%;
   gap: 12px;
   border-top: 1px dashed var(--line);
   padding-top: 16px;
@@ -1196,6 +1204,8 @@ textarea:focus {
 }
 
 .account-line {
+  min-width: 0;
+  max-width: 100%;
   min-height: 58px;
   border: 1px solid #c9d8ff;
   border-radius: 8px;
@@ -1204,7 +1214,14 @@ textarea:focus {
   color: var(--ink);
   font-size: 22px;
   font-weight: 950;
-  word-break: keep-all;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.send-to-card .primary-button {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .settings-card {
@@ -1241,7 +1258,7 @@ textarea:focus {
   background: rgba(47, 109, 246, 0.1);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .workspace,
   .import-layout,
   .settle-grid {
@@ -1334,6 +1351,125 @@ textarea:focus {
   .expense-amount {
     grid-column: 2 / 3;
     justify-items: start;
+  }
+}
+
+@media (min-width: 561px) and (max-width: 900px) {
+  .app-shell {
+    width: calc(100% - 24px);
+    padding: 18px 0 32px;
+  }
+
+  .tab-page {
+    padding: 16px;
+  }
+
+  .settlement-report {
+    gap: 14px;
+    padding: 20px;
+    border-radius: 14px;
+  }
+
+  .report-head {
+    flex-wrap: wrap;
+    gap: 8px 18px;
+  }
+
+  .report-head h2 {
+    font-size: 28px;
+    line-height: 1.12;
+  }
+
+  .report-head > span {
+    flex: 1 1 240px;
+    max-width: 100%;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .payment-head {
+    display: none;
+  }
+
+  .payment-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: auto;
+    gap: 8px 12px;
+    padding: 14px 8px;
+  }
+
+  .payment-row.is-creditor {
+    padding: 14px;
+  }
+
+  .payment-row > strong:first-child {
+    grid-column: 1 / -1;
+    font-size: 21px;
+  }
+
+  .payment-row > span {
+    min-width: 0;
+    text-align: left;
+    font-size: 15px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .payment-row > span:nth-child(2)::before {
+    content: "결제\A";
+  }
+
+  .payment-row > span:nth-child(3)::before {
+    content: "공동 부담\A";
+  }
+
+  .payment-row > span:nth-child(4)::before {
+    content: "개인 부담\A";
+  }
+
+  .payment-row > span:nth-child(2)::before,
+  .payment-row > span:nth-child(3)::before,
+  .payment-row > span:nth-child(4)::before {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.65;
+    white-space: pre;
+  }
+
+  .payment-row .payment-status {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    justify-items: start;
+    gap: 1px;
+    border-radius: 8px;
+    padding: 9px 11px;
+    background: #f2f5f7;
+  }
+
+  .payment-row .payment-status.amount-positive {
+    background: var(--mint-soft);
+  }
+
+  .payment-row .payment-status.amount-negative {
+    background: #fff1f1;
+  }
+
+  .payment-row .payment-status strong {
+    font-size: 18px;
+  }
+
+  .payment-total {
+    padding-inline: 8px;
+  }
+
+  .account-line {
+    font-size: 19px;
+  }
+
+  .account-editor,
+  .settle-actions {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
