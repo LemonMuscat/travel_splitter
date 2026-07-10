@@ -435,10 +435,21 @@ textarea:focus {
 
 .expense-form {
   display: grid;
-  grid-template-columns: minmax(160px, 1.4fr) minmax(96px, 0.65fr) 96px minmax(126px, 0.8fr) minmax(112px, 0.8fr) minmax(132px, 0.9fr) minmax(72px, 0.4fr);
+  grid-template-columns: minmax(180px, 1.5fr) minmax(110px, 0.8fr) 96px minmax(170px, 1.1fr) minmax(76px, 0.45fr);
+  grid-template-areas:
+    "title amount currency date add"
+    "payer payer burden burden add";
   gap: 10px;
   margin-bottom: 18px;
 }
+
+#expenseTitle { grid-area: title; }
+#expenseAmount { grid-area: amount; }
+#expenseCurrency { grid-area: currency; }
+#expenseDate { grid-area: date; }
+#expensePayer { grid-area: payer; }
+#expenseBurdenMode { grid-area: burden; }
+.expense-form .primary-button { grid-area: add; }
 
 .expense-form > * {
   min-width: 0;
@@ -544,7 +555,7 @@ textarea:focus {
 
 .bulk-grid {
   display: grid;
-  grid-template-columns: minmax(150px, 1.2fr) minmax(132px, 0.8fr) minmax(124px, 0.8fr) minmax(128px, 0.8fr) minmax(124px, 0.8fr);
+  grid-template-columns: minmax(180px, 1.2fr) minmax(170px, 0.85fr) minmax(130px, 0.8fr) minmax(180px, 1fr);
   gap: 8px;
 }
 
@@ -779,7 +790,7 @@ textarea:focus {
 
 .expense-editor {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(116px, 132px) minmax(96px, 116px);
+  grid-template-columns: minmax(170px, 1.35fr) minmax(110px, 0.65fr);
   gap: 8px;
 }
 
@@ -788,10 +799,6 @@ textarea:focus {
 }
 
 .expense-edit-category {
-  grid-column: 1 / -1;
-}
-
-.expense-edit-converted {
   grid-column: 1 / -1;
 }
 
@@ -809,6 +816,12 @@ textarea:focus {
   padding: 8px 10px;
   font-size: 15px;
   font-weight: 800;
+}
+
+.expense-edit-date,
+#bulkDate,
+#expenseDate {
+  font-variant-numeric: tabular-nums;
 }
 
 .expense-edit-category {
@@ -1251,6 +1264,11 @@ textarea:focus {
 
   .expense-form {
     grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "title amount"
+      "currency date"
+      "payer burden"
+      "add add";
   }
 
   .expense-form .primary-button {
@@ -1425,6 +1443,14 @@ textarea:focus {
 
   .expense-form {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "title"
+      "amount"
+      "currency"
+      "date"
+      "payer"
+      "burden"
+      "add";
     gap: 8px;
     margin-top: 14px;
     margin-bottom: 0;
@@ -1503,6 +1529,9 @@ textarea:focus {
   }
 
   .expense-edit-category,
+  .expense-edit-date,
+  .expense-edit-amount,
+  .expense-edit-currency,
   .expense-edit-converted {
     grid-column: auto;
   }
