@@ -797,11 +797,8 @@ textarea:focus {
 
 .expense-edit-payer,
 .expense-edit-burden-mode,
+.expense-edit-conversion-status,
 .expense-share-editor {
-  grid-column: 1 / -1;
-}
-
-.expense-edit-burden-person {
   grid-column: 1 / -1;
 }
 
@@ -823,9 +820,14 @@ textarea:focus {
   background: #f4f7ff;
 }
 
-.expense-edit-burden-person {
-  color: #8a3ffc;
-  background: #fbf7ff;
+.expense-edit-conversion-status {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #6b3cc7;
+  background: #f0ebff;
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .expense-share-editor {
@@ -835,6 +837,10 @@ textarea:focus {
   border-radius: 8px;
   padding: 10px;
   background: #f7faf9;
+}
+
+.expense-share-editor[hidden] {
+  display: none;
 }
 
 .expense-share-editor > strong {
@@ -913,6 +919,17 @@ textarea:focus {
   color: var(--green);
   font-size: 13px;
   font-weight: 850;
+  white-space: nowrap;
+}
+
+.expense-conversion-badge {
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #6b3cc7;
+  background: #f0ebff;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
   white-space: nowrap;
 }
 
