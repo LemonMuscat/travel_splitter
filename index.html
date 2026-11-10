@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-title" content="Travel Split" />
 
-    <link rel="stylesheet" href="./styles.css?v=70" />
+    <link rel="stylesheet" href="./styles.css?v=71" />
   </head>
   <body>
     <div class="app-shell" data-active-tab="expenses">
@@ -269,18 +269,28 @@
               <label class="import-data-button" for="dataFileInput">기록 불러오기</label>
               <input id="dataFileInput" type="file" accept="application/json" hidden />
             </div>
-            <button class="danger-button full-button" id="clearAllButton" type="button">현재 내역 전체 삭제</button>
-            <div class="share-box" id="shareBox" hidden>
+            <div class="share-box" id="shareBox" aria-label="생성된 공유 링크" hidden>
               <div>
                 <span>공유 링크</span>
-                <p id="shareStatus">링크가 만들어졌습니다.</p>
+                <p id="shareStatus" role="status">링크가 만들어졌습니다.</p>
               </div>
-              <input id="shareUrl" readonly />
+              <input id="shareUrl" aria-label="공유 링크" readonly />
               <div class="share-actions">
                 <button id="copyButton" type="button">링크 복사</button>
                 <button id="nativeShareButton" type="button">바로 공유</button>
               </div>
+              <details id="shortShareOptions" class="short-share-options">
+                <summary>짧은 링크 만들기 · 선택</summary>
+                <p>이전에 설정한 공유 생성용 비밀번호를 사용합니다. 링크를 받는 사람은 비밀번호를 입력하지 않습니다.</p>
+                <form id="shortShareForm" class="short-share-form">
+                  <label for="sharePassword">공유 생성용 비밀번호</label>
+                  <input id="sharePassword" type="password" autocomplete="current-password" />
+                  <button id="shortShareButton" type="submit">짧은 링크 만들기</button>
+                </form>
+                <p id="shortShareStatus" role="status" aria-live="polite"></p>
+              </details>
             </div>
+            <button class="danger-button full-button" id="clearAllButton" type="button">현재 내역 전체 삭제</button>
             <div class="settle-grid">
               <div>
                 <div class="section-head">
@@ -332,6 +342,6 @@
 
     <script src="./vendor/xlsx.full.min.js"></script>
     <script src="./vendor/lz-string.min.js"></script>
-    <script src="./app.js?v=70"></script>
+    <script src="./app.js?v=71"></script>
   </body>
 </html>
