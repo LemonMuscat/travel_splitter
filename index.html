@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-title" content="Travel Split" />
 
-    <link rel="stylesheet" href="./styles.css?v=71" />
+    <link rel="stylesheet" href="./styles.css?v=72" />
   </head>
   <body>
     <div class="app-shell" data-active-tab="expenses">
@@ -263,21 +263,21 @@
               </div>
             </div>
             <div class="settle-actions">
-              <button class="primary-button" id="shareButton" type="button">정산 링크 만들기</button>
+              <button class="primary-button" id="createSettlementLinkButton" type="button">정산 링크 만들기</button>
               <button id="exportImageButton" type="button">전체 이미지 저장</button>
               <button id="exportDataButton" type="button">기록 파일 저장</button>
               <label class="import-data-button" for="dataFileInput">기록 불러오기</label>
               <input id="dataFileInput" type="file" accept="application/json" hidden />
             </div>
-            <div class="share-box" id="shareBox" aria-label="생성된 공유 링크" hidden>
+            <div class="settlement-link-panel" id="settlementLinkPanel" aria-label="생성된 공유 링크" hidden>
               <div>
                 <span>공유 링크</span>
-                <p id="shareStatus" role="status">링크가 만들어졌습니다.</p>
+                <p id="settlementLinkStatus" role="status">링크가 만들어졌습니다.</p>
               </div>
-              <input id="shareUrl" aria-label="공유 링크" readonly />
-              <div class="share-actions">
-                <button id="copyButton" type="button">링크 복사</button>
-                <button id="nativeShareButton" type="button">바로 공유</button>
+              <input id="settlementLinkInput" aria-label="공유 링크" readonly />
+              <div class="settlement-link-actions">
+                <button id="copySettlementLinkButton" type="button">링크 복사</button>
+                <button id="sendSettlementLinkButton" type="button">바로 공유</button>
               </div>
               <details id="shortShareOptions" class="short-share-options">
                 <summary>짧은 링크 만들기 · 선택</summary>
@@ -342,6 +342,6 @@
 
     <script src="./vendor/xlsx.full.min.js"></script>
     <script src="./vendor/lz-string.min.js"></script>
-    <script src="./app.js?v=71"></script>
+    <script src="./app.js?v=72"></script>
   </body>
 </html>

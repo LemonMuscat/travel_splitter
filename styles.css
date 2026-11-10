@@ -113,7 +113,7 @@ h2 {
 .primary-button,
 .parser-actions button,
 .upload-box button,
-.share-box button,
+.settlement-link-panel button,
 .trip-actions button,
 .settle-actions button,
 .import-data-button {
@@ -128,7 +128,7 @@ h2 {
 .primary-button:hover,
 .parser-actions button:hover,
 .upload-box button:hover,
-.share-box button:hover,
+.settlement-link-panel button:hover,
 .trip-actions button:hover,
 .settle-actions button:hover,
 .import-data-button:hover {
@@ -267,7 +267,7 @@ h2 {
 .rate-status { font-weight: 700; }
 
 label,
-.share-box span,
+.settlement-link-panel span,
 .metric span {
   color: var(--muted);
   font-size: 13px;
@@ -391,7 +391,7 @@ textarea:focus {
   background: var(--panel-soft);
 }
 
-.share-box {
+.settlement-link-panel {
   display: grid;
   gap: 10px;
   border: 1px solid rgba(15, 138, 97, 0.25);
@@ -400,11 +400,11 @@ textarea:focus {
   background: rgba(15, 138, 97, 0.08);
 }
 
-.share-box[hidden] {
+.settlement-link-panel[hidden] {
   display: none;
 }
 
-.share-box p {
+.settlement-link-panel p {
   margin-top: 3px;
   color: var(--green);
   font-size: 13px;
@@ -420,17 +420,17 @@ textarea:focus {
 .short-share-options p { color: var(--muted); line-height: 1.6; }
 .short-share-form { display: grid; gap: 8px; margin-top: 10px; }
 
-.share-actions {
+.settlement-link-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.share-actions button[hidden] {
+.settlement-link-actions button[hidden] {
   display: none;
 }
 
-.share-actions.is-single {
+.settlement-link-actions.is-single {
   grid-template-columns: 1fr;
 }
 

@@ -119,17 +119,17 @@ const els = {
   exportImageButton: document.querySelector("#exportImageButton"),
   exportDataButton: document.querySelector("#exportDataButton"),
   dataFileInput: document.querySelector("#dataFileInput"),
-  shareButton: document.querySelector("#shareButton"),
-  shareBox: document.querySelector("#shareBox"),
-  shareUrl: document.querySelector("#shareUrl"),
-  shareStatus: document.querySelector("#shareStatus"),
+  shareButton: document.querySelector("#createSettlementLinkButton"),
+  shareBox: document.querySelector("#settlementLinkPanel"),
+  shareUrl: document.querySelector("#settlementLinkInput"),
+  shareStatus: document.querySelector("#settlementLinkStatus"),
   shortShareOptions: document.querySelector("#shortShareOptions"),
   shortShareForm: document.querySelector("#shortShareForm"),
   sharePassword: document.querySelector("#sharePassword"),
   shortShareButton: document.querySelector("#shortShareButton"),
   shortShareStatus: document.querySelector("#shortShareStatus"),
-  copyButton: document.querySelector("#copyButton"),
-  nativeShareButton: document.querySelector("#nativeShareButton"),
+  copyButton: document.querySelector("#copySettlementLinkButton"),
+  nativeShareButton: document.querySelector("#sendSettlementLinkButton"),
   undoButton: document.querySelector("#undoButton"),
   redoButton: document.querySelector("#redoButton"),
   resetButton: document.querySelector("#resetButton"),
@@ -3087,7 +3087,7 @@ function bindEvents() {
     }
   });
   els.nativeShareButton.hidden = typeof navigator.share !== "function";
-  els.nativeShareButton.closest(".share-actions")?.classList.toggle("is-single", els.nativeShareButton.hidden);
+  els.nativeShareButton.closest(".settlement-link-actions")?.classList.toggle("is-single", els.nativeShareButton.hidden);
   els.nativeShareButton.addEventListener("click", async () => {
     if (typeof navigator.share !== "function" || !els.shareUrl.value) return;
     try {

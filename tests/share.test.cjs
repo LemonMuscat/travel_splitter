@@ -35,16 +35,16 @@ function reset() {
     reset();
     context.fetch = async () => { throw new Error("default link must not use the network"); };
     run("createShareLink()");
-    assert.equal(element("shareBox").hidden, false);
-    assert.match(element("shareUrl").value, /#share=v2\./);
-    context.location.hash = new URL(element("shareUrl").value).hash;
+    assert.equal(element("settlementLinkPanel").hidden, false);
+    assert.match(element("settlementLinkInput").value, /#share=v2\./);
+    context.location.hash = new URL(element("settlementLinkInput").value).hash;
     const restored = await run("readSharedState()");
     assert.equal(restored.tripName, "공유 테스트");
     assert.equal(restored.expenses[0].amount, 1000);
     assert.equal(restored.rates.JPY, 10);
   });
   await check("link captures the shown snapshot while later edits remain local", async () => {
-    const link = element("shareUrl").value;
+    const link = element("settlementLinkInput").value;
     run("state.people.push('추가 참가자'); state.expenses[0].amount=2000;");
     context.location.hash = new URL(link).hash;
     const restored = await run("readSharedState()");
@@ -54,11 +54,11 @@ function reset() {
   });
   await check("wrong password keeps a working link, clears invalid saved credentials and allows retry", async () => {
     reset(); run("createShareLink()");
-    const fallback = element("shareUrl").value;
+    const fallback = element("settlementLinkInput").value;
     saved.set(key, "invalid-test-token");
     context.fetch = async () => ({ok:false,status:401,json:async()=>({error:"invalid password"})});
     await run("createShortShareLink('invalid-test-token')");
-    assert.equal(element("shareUrl").value, fallback);
+    assert.equal(element("settlementLinkInput").value, fallback);
     assert.equal(element("shortShareOptions").open, true);
     assert.match(element("shortShareStatus").textContent, /올바르지/);
     assert.equal(saved.has(key), false);
@@ -69,7 +69,7 @@ function reset() {
     context.fetch = async () => ({ok:false,status:401,json:async()=>({error:"expired"})});
     run("createShareLink()");
     for (let attempt=0; attempt<100 && element("shortShareButton").disabled; attempt+=1) await new Promise((resolve)=>setTimeout(resolve, 2));
-    assert.match(element("shareUrl").value, /#share=v2\./);
+    assert.match(element("settlementLinkInput").value, /#share=v2\./);
     assert.match(element("shortShareStatus").textContent, /올바르지/);
     assert.equal(saved.has(key), false);
     assert.equal(element("shortShareButton").disabled, false);
@@ -83,7 +83,7 @@ function reset() {
       return {ok:true,json:async()=>({id:"synthetic-share-id"})};
     };
     await run("createShortShareLink('valid-test-token')");
-    const link = new URL(element("shareUrl").value);
+    const link = new URL(element("settlementLinkInput").value);
     const params = new URLSearchParams(link.hash.slice(1));
     assert.equal(params.get("s"), "synthetic-share-id");
     assert.equal(saved.get(key), "valid-test-token");
@@ -96,10 +96,10 @@ function reset() {
   });
   await check("offline short-link service leaves the default link available", async () => {
     reset(); run("createShareLink()");
-    const fallback = element("shareUrl").value;
+    const fallback = element("settlementLinkInput").value;
     context.fetch = async () => { throw new TypeError("offline"); };
     await run("createShortShareLink('test')");
-    assert.equal(element("shareUrl").value, fallback);
+    assert.equal(element("settlementLinkInput").value, fallback);
     assert.match(element("shortShareStatus").textContent, /연결하지 못/);
   });
   await check("hung short-link requests time out and restore the retry button", async () => {
@@ -117,7 +117,7 @@ function reset() {
     run("createShareLink()");
     context.fetch = async () => ({ok:true,json:async()=>({id:"storage-blocked-test"})});
     await run("createShortShareLink('test')");
-    assert.match(element("shareUrl").value, /#s=storage-blocked-test/);
+    assert.match(element("settlementLinkInput").value, /#s=storage-blocked-test/);
     context.localStorage = storage;
   });
   await check("switching trips discards a pending result and password field", async () => {
@@ -129,17 +129,17 @@ function reset() {
     const pending = run("createShortShareLink('test')");
     await ready;
     run("appState.trips=[createTrip('other')]; setActiveTrip(appState.trips[0].id);");
-    const before = element("shareUrl").value;
+    const before = element("settlementLinkInput").value;
     resolveFetch({ok:true,json:async()=>({id:"stale-test"})});
     await pending;
-    assert.equal(element("shareBox").hidden, true);
-    assert.equal(element("shareUrl").value, before);
+    assert.equal(element("settlementLinkPanel").hidden, true);
+    assert.equal(element("settlementLinkInput").value, before);
     assert.equal(saved.has(key), false);
   });
   await check("basic links also round-trip without the compression library", async () => {
     reset(); context.window.LZString = undefined;
     run("createShareLink()");
-    context.location.hash = new URL(element("shareUrl").value).hash;
+    context.location.hash = new URL(element("settlementLinkInput").value).hash;
     const restored = await run("readSharedState()");
     assert.equal(restored.tripName, "공유 테스트");
     assert.equal(restored.expenses[0].time, "12:30");
