@@ -255,6 +255,17 @@ h2 {
   background: #fff;
 }
 
+.rate-status,
+.rate-note {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.rate-status { font-weight: 700; }
+
 label,
 .share-box span,
 .metric span {

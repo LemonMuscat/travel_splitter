@@ -2,6 +2,7 @@ const STORAGE_KEY = "travel-splitter-state-v3";
 const LEGACY_KEYS = ["travel-splitter-state-v2", "travel-splitter-state"];
 const CURRENCIES = ["KRW", "JPY", "USD", "THB", "VND", "CNY", "EUR"];
 const DEFAULT_RATES = { KRW: 1, JPY: 9.5, USD: 1540, THB: 42, VND: 0.06, CNY: 212, EUR: 1800 };
+const RATE_API_URL = "https://api.frankfurter.dev/v2/rates";
 const DATE_COLORS = ["#ffb000", "#4aa3f0", "#8b5cf6", "#0f8a61", "#f97316", "#ec4899", "#14b8a6", "#f472b6"];
 const DEFAULT_PEOPLE = ["나", "동행 1"];
 const KRW_SETTLEMENT_ROUND_UNIT = 10;
@@ -41,6 +42,9 @@ const historyState = {
 let state = createTrip("🧳 여행 1", []);
 let personInputComposing = false;
 let lastPersonAdd = { name: "", time: 0 };
+let rateRequestId = 0;
+let ratesLoading = false;
+let rateMessage = "";
 
 const els = {
   appTitle: document.querySelector("#appTitle"),
@@ -61,6 +65,9 @@ const els = {
   vndRate: document.querySelector("#vndRate"),
   cnyRate: document.querySelector("#cnyRate"),
   eurRate: document.querySelector("#eurRate"),
+  rateMode: document.querySelector("#rateMode"),
+  refreshRatesButton: document.querySelector("#refreshRatesButton"),
+  rateStatus: document.querySelector("#rateStatus"),
   peopleCount: document.querySelector("#peopleCount"),
   peopleList: document.querySelector("#peopleList"),
   personInput: document.querySelector("#personInput"),
@@ -139,6 +146,7 @@ function createTrip(name = nextTripName(), expenses = []) {
     tripEndDate: "",
     settlementCurrency: "KRW",
     rates: { ...DEFAULT_RATES },
+    rateMode: "latest",
     people: [...DEFAULT_PEOPLE],
     account: { ...DEFAULT_ACCOUNT },
     expenses,
@@ -164,6 +172,11 @@ function normalizeTrip(trip) {
     tripEndDate: normalizeDateInput(trip.tripEndDate || trip.endDate),
     settlementCurrency,
     rates: normalizeRates(trip.rates),
+    rateMode: ["latest", "expense-date", "manual"].includes(trip.rateMode) ? trip.rateMode : "manual",
+    rateSnapshot: normalizeRateSnapshot(trip.rateSnapshot),
+    dailyRates: Object.fromEntries(Object.entries(trip.dailyRates || {})
+      .filter(([date]) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+      .map(([date, snapshot]) => [date, normalizeRateSnapshot(snapshot)]).filter(([, snapshot]) => snapshot)),
     people,
     account: normalizeAccount(trip.account),
     expenses: [],
@@ -188,9 +201,27 @@ function normalizeAccount(account = {}) {
 }
 
 function normalizeRates(rates = {}) {
-  const normalized = { ...DEFAULT_RATES, ...rates };
-  if (Number(normalized.USD) === 1390) normalized.USD = DEFAULT_RATES.USD;
+  const normalized = { ...DEFAULT_RATES };
+  CURRENCIES.filter((currency) => currency !== "KRW").forEach((currency) => {
+    const value = Number(rates?.[currency]);
+    if (Number.isFinite(value) && value > 0) normalized[currency] = value;
+  });
   return normalized;
+}
+
+function normalizeRateSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  const rates = { KRW: 1 };
+  const dates = {};
+  CURRENCIES.filter((currency) => currency !== "KRW").forEach((currency) => {
+    const rate = Number(snapshot.rates?.[currency]);
+    const date = snapshot.dates?.[currency];
+    if (Number.isFinite(rate) && rate > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      rates[currency] = rate;
+      dates[currency] = date;
+    }
+  });
+  return { rates, dates };
 }
 
 function normalizeShares(shares = {}, people = state.people) {
@@ -227,6 +258,9 @@ function normalizeExpense(expense, trip = state) {
 }
 
 function setActiveTrip(id) {
+  rateRequestId += 1;
+  ratesLoading = false;
+  rateMessage = "";
   const found = appState.trips.find((trip) => trip.id === id) || appState.trips[0];
   state = found || createTrip();
   appState.activeTripId = state.id;
@@ -421,6 +455,9 @@ function compactSharePayload() {
     e: state.tripEndDate,
     c: state.settlementCurrency,
     r: CURRENCIES.map((currency) => state.rates[currency] || DEFAULT_RATES[currency]),
+    m: state.rateMode,
+    q: state.rateSnapshot,
+    h: state.dailyRates,
     p: state.people,
     a: [state.account.bank, state.account.number, state.account.holder],
     x: state.expenses.map((expense) => [
@@ -454,6 +491,9 @@ function expandCompactShare(payload) {
     tripEndDate: payload.e,
     settlementCurrency: payload.c,
     rates,
+    rateMode: payload.m,
+    rateSnapshot: payload.q,
+    dailyRates: payload.h,
     people: payload.p,
     account: {
       bank: payload.a?.[0] || "",
@@ -539,10 +579,106 @@ function rateOf(currency) {
   return Number(state.rates[currency]) || 1;
 }
 
+function expenseRateOf(expense) {
+  if (state.rateMode === "expense-date") {
+    return Number(state.dailyRates[expense.date]?.rates[expense.currency]) || rateOf(expense.currency);
+  }
+  return rateOf(expense.currency);
+}
+
+function localDateToday() {
+  const today = new Date();
+  return dateParts(today.getFullYear(), today.getMonth() + 1, today.getDate()).date;
+}
+
+async function fetchRateSnapshot(date = "") {
+  const params = new URLSearchParams({ base: "KRW", quotes: CURRENCIES.filter((currency) => currency !== "KRW").join(",") });
+  if (date) params.set("date", date);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(`${RATE_API_URL}?${params}`, { signal: controller.signal });
+    if (!response.ok) throw new Error("환율 조회 실패");
+    const data = await response.json();
+    if (!Array.isArray(data)) throw new Error("환율 응답 오류");
+    const snapshot = { rates: { KRW: 1 }, dates: {} };
+    data.forEach((row) => {
+      const currency = String(row.quote || "").toUpperCase();
+      if (String(row.base).toUpperCase() !== "KRW" || currency === "KRW" || !CURRENCIES.includes(currency)) return;
+      if (!Number.isFinite(row.rate) || row.rate <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(row.date) || row.date > (date || localDateToday())) return;
+      snapshot.rates[currency] = Number((1 / row.rate).toPrecision(10));
+      snapshot.dates[currency] = row.date;
+    });
+    if (!Object.keys(snapshot.dates).length) throw new Error("조회 가능한 환율 없음");
+    return snapshot;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function missingHistoricalExpenses() {
+  return state.expenses.filter((expense) => expense.currency !== "KRW" && !expense.conversionFixed
+    && !state.dailyRates[expense.date]?.rates[expense.currency]);
+}
+
+function renderRateStatus() {
+  els.rateMode.value = state.rateMode;
+  els.refreshRatesButton.disabled = ratesLoading || state.rateMode === "manual";
+  els.refreshRatesButton.textContent = ratesLoading ? "환율 조회 중…" : state.rateMode === "expense-date" ? "사용일 환율 불러오기" : "최신 환율 불러오기";
+  const dates = [...new Set(Object.values(state.rateSnapshot?.dates || {}))].sort();
+  const latestLabel = dates.length ? `${dates.join(" ~ ")} 고시 · Frankfurter` : "자동 조회 전 · 기본값 사용 중";
+  const missing = state.rateMode === "expense-date" ? missingHistoricalExpenses().length : 0;
+  const description = state.rateMode === "manual" ? "수동 환율 적용 중 · 아래 값을 직접 수정할 수 있습니다."
+    : state.rateMode === "expense-date" ? `사용일별 원화 환산${missing ? ` · ${missing}건 미조회: 아래 공통 환율로 임시 계산 중` : ""}. 정산 기준 통화는 아래 공통 환율을 사용합니다.`
+      : `${latestLabel} · 아래 값을 수정하면 수동 환율로 전환됩니다.`;
+  els.rateStatus.textContent = `${rateMessage ? `${rateMessage} ` : ""}${description}`;
+}
+
+async function refreshExchangeRates() {
+  if (state.rateMode === "manual") return;
+  const trip = state;
+  const mode = trip.rateMode;
+  const requestId = ++rateRequestId;
+  ratesLoading = true;
+  rateMessage = "";
+  renderRateStatus();
+  const isCurrent = () => requestId === rateRequestId && state === trip && trip.rateMode === mode;
+  try {
+    const latest = await fetchRateSnapshot();
+    if (!isCurrent()) return;
+    const daily = { ...trip.dailyRates };
+    let failed = 0;
+    if (mode === "expense-date") {
+      const dates = [...new Set(trip.expenses.filter((expense) => expense.currency !== "KRW" && !expense.conversionFixed).map((expense) => expense.date))];
+      let cursor = 0;
+      await Promise.all(Array.from({ length: Math.min(3, dates.length) }, async () => {
+        while (cursor < dates.length && isCurrent()) {
+          const date = dates[cursor++];
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > localDateToday()) { failed += 1; continue; }
+          try { daily[date] = await fetchRateSnapshot(date); } catch { failed += 1; }
+        }
+      }));
+    }
+    if (!isCurrent()) return;
+    trip.rates = { ...trip.rates, ...latest.rates };
+    trip.rateSnapshot = latest;
+    trip.dailyRates = daily;
+    rateMessage = failed ? `${failed}개 날짜는 조회하지 못했습니다. 다시 조회하거나 수동으로 수정하세요.` : "환율을 불러왔습니다.";
+    render();
+  } catch (error) {
+    if (isCurrent()) rateMessage = "환율을 불러오지 못했습니다. 저장된 값을 유지합니다. 다시 조회하거나 직접 수정하세요.";
+  } finally {
+    if (isCurrent()) {
+      ratesLoading = false;
+      renderRateStatus();
+    }
+  }
+}
+
 function toSettlementAmount(expense) {
   const amountInKrw = expense.conversionFixed && Number(expense.convertedAmountKrw) > 0
     ? Number(expense.convertedAmountKrw)
-    : Number(expense.amount) * rateOf(expense.currency);
+    : Number(expense.amount) * expenseRateOf(expense);
   return amountInKrw / rateOf(state.settlementCurrency);
 }
 
@@ -794,6 +930,7 @@ function render() {
   els.vndRate.value = state.rates.VND;
   els.cnyRate.value = state.rates.CNY;
   els.eurRate.value = state.rates.EUR;
+  renderRateStatus();
   els.accountBank.value = state.account.bank;
   els.accountNumber.value = state.account.number;
   els.accountHolder.value = state.account.holder;
@@ -1043,9 +1180,15 @@ function createExpenseRow(expense) {
     row.querySelector(".expense-money").textContent = money.original;
     row.querySelector(".expense-converted").textContent = money.converted;
     const conversionBadge = row.querySelector(".expense-conversion-badge");
-    const hasFixedConversion = expense.currency !== state.settlementCurrency && expense.conversionFixed;
-    conversionBadge.hidden = !hasFixedConversion;
-    conversionBadge.title = hasFixedConversion ? "직접 입력한 원화 환산액 · 환율 변경에서 제외" : "";
+    const hasFixedConversion = expense.currency !== "KRW" && expense.conversionFixed;
+    const historicalDate = state.rateMode === "expense-date" && expense.currency !== "KRW"
+      ? state.dailyRates[expense.date]?.dates[expense.currency] : "";
+    const needsHistoricalRate = state.rateMode === "expense-date" && expense.currency !== "KRW" && !historicalDate;
+    conversionBadge.hidden = !hasFixedConversion && !historicalDate && !needsHistoricalRate;
+    conversionBadge.textContent = hasFixedConversion ? "직접 환산" : historicalDate ? `${historicalDate} 환율` : "사용일 환율 미조회";
+    conversionBadge.title = hasFixedConversion ? "직접 입력한 원화 환산액 · 환율 변경에서 제외"
+      : historicalDate ? `1 ${expense.currency} = ${expenseRateOf(expense)} KRW · Frankfurter`
+        : "아래 공통 환율로 임시 계산 중입니다. 가져오기에서 사용일 환율을 불러오세요.";
     const includeButton = row.querySelector(".include-toggle");
     includeButton.textContent = included ? "✓" : "";
     includeButton.classList.toggle("is-excluded", !included);
@@ -1303,7 +1446,7 @@ function createExpenseEditor(expense, category) {
     ? ""
     : Math.round(expense.conversionFixed && Number(expense.convertedAmountKrw) > 0
       ? Number(expense.convertedAmountKrw)
-      : Number(expense.amount) * rateOf(expense.currency));
+      : Number(expense.amount) * expenseRateOf(expense));
   convertedInput.placeholder = "원화 환산액 · 직접 수정 시 고정";
   convertedInput.dataset.userEdited = "false";
   const conversionStatus = document.createElement("span");
@@ -1528,11 +1671,11 @@ function addExpense(expense) {
 }
 
 function importExpenses(expenses) {
-  const existing = new Set(state.expenses.map((item) => `${item.title}-${item.amount}-${item.currency}-${item.date}`));
+  const existing = new Set(state.expenses.map(expenseImportKey));
   let added = 0;
   expenses.forEach((expense) => {
     const normalized = normalizeExpense(expense);
-    const key = `${normalized.title}-${normalized.amount}-${normalized.currency}-${normalized.date}`;
+    const key = expenseImportKey(normalized);
     if (!existing.has(key)) {
       state.expenses.unshift(normalized);
       existing.add(key);
@@ -1540,13 +1683,25 @@ function importExpenses(expenses) {
     }
   });
   render();
+  if (added && state.rateMode === "expense-date") void refreshExchangeRates();
   return added;
+}
+
+function expenseImportKey(expense) {
+  return JSON.stringify([cleanTitle(expense.title), Number(expense.amount), expense.currency, expense.date, normalizeTime(expense.time)]);
+}
+
+function importResultMessage(expenses, added, source = "") {
+  if (!expenses.length) return `${source ? `${source}에서 ` : ""}가져올 지출을 찾지 못했습니다.`;
+  const duplicateCount = expenses.length - added;
+  const reviewCount = expenses.filter((expense) => expense.review).length;
+  return `${source ? `${source}에서 ` : ""}${added}건을 추가했습니다.${duplicateCount ? ` ${duplicateCount}건은 이미 있어 중복 제외했습니다.` : ""}${reviewCount ? ` ${reviewCount}건은 확인 필요입니다.` : ""}`;
 }
 
 function uniqueExpenses(expenses) {
   const seen = new Set();
   return expenses.filter((expense) => {
-    const key = `${expense.title}-${expense.amount}-${expense.currency}-${expense.date}`;
+    const key = expenseImportKey(expense);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -1554,11 +1709,15 @@ function uniqueExpenses(expenses) {
 }
 
 function parseLedgerText(text) {
+  // A ledger's memo can contain card SMS messages. Once its table is recognized,
+  // never run card/heuristic parsers over the same rows, including income-only tables.
+  const rows = parseDelimitedRows(text);
+  if (structuredLedgerRows(rows)) return parseStructuredRows(rows);
+  const screenRows = moneyManagerScreenRows(text);
+  if (screenRows) return parseStructuredRows(screenRows);
+
   const cardStatement = parseCardStatementText(text);
   if (cardStatement.length) return cardStatement;
-
-  const structured = parseStructuredLedgerText(text);
-  if (structured.length) return structured;
 
   const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
   const fromBlocks = parseLedgerBlocks(lines);
@@ -1741,39 +1900,76 @@ function parseStructuredLedgerText(text) {
 }
 
 function parseDelimitedRows(text) {
-  const rawLines = String(text || "").split(/\r?\n/).filter((line) => line.trim());
-  if (!rawLines.length) return [];
-  const delimiter = rawLines[0].includes("\t") ? "\t" : rawLines[0].includes(",") ? "," : "";
+  const input = String(text || "").replace(/^\uFEFF/, "");
+  const delimiter = input.includes("\t") ? "\t" : input.includes(",") ? "," : "";
   if (!delimiter) return [];
-  return rawLines.map((line) => splitDelimitedLine(line, delimiter));
-}
-
-function splitDelimitedLine(line, delimiter) {
-  if (delimiter === "\t") return line.split("\t").map((cell) => cell.trim());
-  const cells = [];
+  const rows = [];
+  let cells = [];
   let current = "";
   let quoted = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
     if (char === '"') {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
+      if (quoted && input[index + 1] === '"') { current += '"'; index += 1; }
+      else if (quoted || !current) quoted = !quoted;
+      else current += char;
+    } else if (char === delimiter && !quoted) {
       cells.push(current.trim());
       current = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      cells.push(current.trim());
+      if (cells.some(Boolean)) rows.push(cells);
+      cells = [];
+      current = "";
+      if (char === "\r" && input[index + 1] === "\n") index += 1;
     } else {
       current += char;
     }
   }
   cells.push(current.trim());
-  return cells;
+  if (cells.some(Boolean)) rows.push(cells);
+  return rows;
 }
 
-function parseStructuredRows(rows) {
-  if (!Array.isArray(rows) || rows.length < 2) return [];
-  const headerIndex = rows.findIndex((row) => row.some((cell) => normalizeHeader(cell) === "날짜") && row.some((cell) => normalizeHeader(cell) === "내용"));
-  if (headerIndex < 0) return [];
+const MONEY_MANAGER_HEADERS = ["날짜", "자산", "분류", "소분류", "내용", "금액(원)", "수입/지출", "태그", "메모", "금액", "화폐"];
 
-  const headers = rows[headerIndex].map(normalizeHeader);
+function structuredLedgerRows(rows) {
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const headerIndex = rows.findIndex((row) => row.some((cell) => normalizeHeader(cell) === "날짜") && row.some((cell) => normalizeHeader(cell) === "내용"));
+  if (headerIndex >= 0) return rows.slice(headerIndex);
+  // Copying only the data cells from the app/Excel omits the column names.
+  if (rows.every((row) => [10, 11].includes(row.length) && parseLedgerMoment(row[0]).date && /^(지출|수입|이체)$/.test(cell(row, 6)))) {
+    const headers = rows[0].length === 11 ? MONEY_MANAGER_HEADERS : MONEY_MANAGER_HEADERS.filter((name) => name !== "태그");
+    return [headers, ...rows];
+  }
+  return null;
+}
+
+function moneyManagerScreenRows(text) {
+  const lines = String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  // Some browsers copy table cells as separate lines or columns separated by spaces.
+  const spaced = lines.map((line) => line.split(/\s{2,}/));
+  const table = structuredLedgerRows(spaced);
+  if (table) return table;
+  const dateLine = (line) => /^\d{4}[.\-/]\s*\d{1,2}[.\-/]\s*\d{1,2}(?:\.?\s+(?:\d{1,2}:\d{2}(?::\d{2})?)?)?$/.test(line);
+  const starts = lines.map((line, index) => dateLine(line) ? index : -1).filter((index) => index >= 0);
+  const rows = [];
+  starts.forEach((start, index) => {
+    const cells = lines.slice(start, starts[index + 1] ?? lines.length);
+    const flowIndex = cells.findIndex((value) => /^(지출|수입|이체)$/.test(value));
+    if (flowIndex < 4 || !/^-?[\d,]+(?:\.\d+)?(?:\s*원)?$/.test(cells[flowIndex - 1])) return;
+    const currencyIndex = cells.findLastIndex((value) => CURRENCIES.includes(value.toUpperCase()));
+    const original = currencyIndex > flowIndex && /^-?[\d,]+(?:\.\d+)?$/.test(cells[currencyIndex - 1]) ? cells[currencyIndex - 1] : cells[flowIndex - 1];
+    rows.push([cells[0], cells[1], cells[2], "", cells[flowIndex - 2], cells[flowIndex - 1], cells[flowIndex], "", "", original, currencyIndex >= 0 ? cells[currencyIndex] : "KRW"]);
+  });
+  return rows.length ? [MONEY_MANAGER_HEADERS, ...rows] : null;
+}
+
+function parseStructuredRows(inputRows) {
+  const rows = structuredLedgerRows(inputRows);
+  if (!rows) return [];
+
+  const headers = rows[0].map(normalizeHeader);
   const column = (name) => headers.indexOf(normalizeHeader(name));
   const idx = {
     date: column("날짜"),
@@ -1786,17 +1982,16 @@ function parseStructuredRows(rows) {
     currency: column("화폐"),
   };
 
-  return rows.slice(headerIndex + 1).flatMap((row) => {
+  return rows.slice(1).flatMap((row) => {
     const flow = cell(row, idx.flow);
     const category = cell(row, idx.category);
     const title = cell(row, idx.title);
     if (!title || (flow && flow !== "지출")) return [];
-    if (category && !/여행\s*\/\s*공/.test(category)) return [];
 
     const currency = normalizeCurrency(cell(row, idx.currency));
     const krwAmount = toNumber(cell(row, idx.krwAmount));
     const originalAmount = toNumber(cell(row, idx.originalAmount)) || krwAmount;
-    if (!originalAmount) return [];
+    if (originalAmount <= 0) return [];
 
     const ledgerMoment = parseLedgerMoment(cell(row, idx.date));
     return [{
@@ -1814,7 +2009,7 @@ function parseStructuredRows(rows) {
 }
 
 function normalizeHeader(value) {
-  return String(value || "").replace(/\s/g, "").trim();
+  return String(value || "").replace(/[\s\uFEFF]/g, "").trim();
 }
 
 function cell(row, index) {
@@ -1849,7 +2044,7 @@ function parseLedgerMoment(value) {
   if (/^\d+(\.\d+)?$/.test(text)) {
     const excelSerial = Number(text);
     if (Number.isFinite(excelSerial) && excelSerial > 20000) {
-      const date = new Date(Date.UTC(1899, 11, 30) + excelSerial * 86400000);
+      const date = new Date(Date.UTC(1899, 11, 30) + Math.round(excelSerial * 86400000));
       return dateParts(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), date.getUTCHours(), date.getUTCMinutes());
     }
   }
@@ -1892,7 +2087,7 @@ function dateParts(year, month, day, hour = "", minute = "") {
 function mergeParsedExpenses(expenses) {
   const seen = new Set();
   return expenses.filter((expense) => {
-    const key = `${expense.title}-${expense.amount}-${expense.currency}-${expense.date}`;
+    const key = expenseImportKey(expense);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -1919,7 +2114,7 @@ function recoverKrwBlockAmounts(lines, existing) {
       title,
       amount: amountMatch.amount,
       currency: "KRW",
-      date: day ? dateWithDay(day) : state.tripDate,
+      date: day ? dateWithDay(day, ledgerMonthAt(lines, startIndex)) : state.tripDate,
       payer: state.people[0],
       category: guessCategory(blockLines.join(" ")),
       participants: [...state.people],
@@ -1948,13 +2143,13 @@ function recoverKrwRegexBlocks(text, existing) {
     if (!title || merchantScore(title) < 20) continue;
 
     const beforeBlock = text.slice(0, match.index);
-    const dayMatches = [...beforeBlock.matchAll(/(?:^|\n)\s*([0-3]?\d)\s*(?:\n|$)/g)];
-    const day = dayMatches.at(-1)?.[1] || "";
+    const previousLines = beforeBlock.split(/\n/);
+    const day = findPreviousDay(previousLines, previousLines.length - 1);
     const expense = {
       title,
       amount: amountMatch.amount,
       currency: "KRW",
-      date: day ? dateWithDay(day) : state.tripDate,
+      date: day ? dateWithDay(day, ledgerMonthAt(previousLines, previousLines.length - 1)) : state.tripDate,
       payer: state.people[0],
       category: guessCategory(blockText),
       participants: [...state.people],
@@ -2063,6 +2258,7 @@ function findPreviousDay(lines, index) {
 function parseLedgerBlocks(lines) {
   const blocks = [];
   let currentDay = "";
+  let monthBase = state.tripDate;
   let pending = null;
 
   const closePending = () => {
@@ -2073,6 +2269,8 @@ function parseLedgerBlocks(lines) {
   };
 
   lines.forEach((line, index) => {
+    const month = line.match(/^(\d{4})\s*(?:년|[.\-/])\s*(\d{1,2})\s*(?:월|\.)?$/);
+    if (month) { monthBase = dateParts(month[1], month[2], 1).date; return; }
     if (isDayMarker(line)) {
       closePending();
       currentDay = line.match(/\b([0-3]?\d)\b/)?.[1] || currentDay;
@@ -2081,7 +2279,7 @@ function parseLedgerBlocks(lines) {
 
     if (isTransactionStart(line)) {
       closePending();
-      pending = { day: currentDay, startIndex: index, lines: [line] };
+      pending = { date: currentDay ? `${monthBase.slice(0, 7)}-${currentDay.padStart(2, "0")}` : monthBase, startIndex: index, lines: [line] };
       return;
     }
 
@@ -2096,7 +2294,7 @@ function parseLedgerBlocks(lines) {
 }
 
 function isTransactionStart(line) {
-  return /^여행\s*\/\s*공/.test(String(line || "").trim());
+  return /^(여행(?:\s*\/.*)?|식료품구매|건강|물품구매|식비|교통\/차량|문화생활|생활용품|경조사\/회비|교육|의복|미용)$/.test(String(line || "").trim());
 }
 
 function parseTransactionBlock(block) {
@@ -2112,13 +2310,12 @@ function parseTransactionBlock(block) {
   if (!title) return null;
 
   const context = blockLines.join(" ");
-  if (amountMatch.currency === "KRW" && !isTravelText(`${title} ${context}`)) return null;
-
   return {
     title,
     amount: amountMatch.amount,
     currency: amountMatch.currency,
-    date: block.day ? dateWithDay(block.day) : state.tripDate,
+    date: block.date || state.tripDate,
+    time: timeParts(context).every(Boolean) ? timeParts(context).join(":") : "",
     payer: state.people[0],
     category: guessCategory(`${title} ${context}`),
     participants: [...state.people],
@@ -2199,6 +2396,7 @@ function isTitleCandidate(text) {
   if (!candidate) return false;
   if (findAmount(candidate)) return false;
   if (isUiOrExampleLine(candidate)) return false;
+  if (isTransactionStart(candidate)) return false;
   if (/^(여비교통비|예비교통비|집대비|밴드지출|국내지급수수료|개인용|차량유지비|소모품비)$/.test(candidate)) return false;
   if (/^여행\s*\/|^오전|^오후|대한항공|헤리티지|허리티지|국민행복|더모아|레버카드/i.test(candidate)) return false;
   if (/^(0원|월요일|화요일|수요일|목요일|금요일|토요일|일요일|\d{1,2}|×|\+)$/.test(candidate)) return false;
@@ -2262,8 +2460,16 @@ function isDayMarker(text) {
   return /^([0-3]?\d)(\s|$)/.test(value) && (value.length <= 8 || /월|화|수|목|금|토|일/.test(value));
 }
 
-function dateWithDay(day) {
-  const base = state.tripDate ? new Date(`${state.tripDate}T00:00:00`) : new Date();
+function ledgerMonthAt(lines, index) {
+  for (let cursor = index; cursor >= 0; cursor -= 1) {
+    const match = lines[cursor].match(/^(\d{4})\s*(?:년|[.\-/])\s*(\d{1,2})\s*(?:월|\.)?$/);
+    if (match) return dateParts(match[1], match[2], 1).date;
+  }
+  return state.tripDate;
+}
+
+function dateWithDay(day, monthBase = state.tripDate) {
+  const base = monthBase ? new Date(`${monthBase}T00:00:00`) : new Date();
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
@@ -2287,6 +2493,7 @@ function createNewTrip() {
   els.shareBox.hidden = true;
   resetImportPanel("새 여행을 만들었습니다. 엑셀 파일을 올리거나 카드사 내역을 붙여넣으세요.");
   render();
+  void refreshExchangeRates();
 }
 
 function duplicateTrip() {
@@ -2343,10 +2550,10 @@ async function runLedgerFileImport() {
     els.ledgerText.value = rowsToTsv(rows);
     const parsed = parseStructuredRows(rows);
     const added = importExpenses(parsed);
-    els.importHint.textContent = added ? `${file.name}에서 ${added}건을 추가했습니다.` : `${file.name}에서 정산 후보를 찾지 못했습니다.`;
+    els.importHint.textContent = importResultMessage(parsed, added, file.name);
   } catch (clientError) {
     if (location.protocol === "file:") {
-      els.importHint.textContent = ".xlsx를 바로 읽으려면 인터넷 연결이 필요합니다. CSV/TSV로 저장하거나 엑셀 내용을 복사해 붙여넣을 수도 있습니다.";
+      els.importHint.textContent = "엑셀 파일을 읽지 못했습니다. 새로고침하거나 CSV/TSV·텍스트 붙여넣기를 사용하세요.";
       console.error(clientError);
       return;
     }
@@ -2362,18 +2569,22 @@ async function readXlsxFileInBrowser(file) {
   const buffer = await file.arrayBuffer();
   const workbook = window.XLSX.read(buffer, {
     type: "array",
-    cellDates: true,
-    dateNF: "yyyy. mm. dd hh:mm:ss",
-    raw: false,
+    cellDates: false,
   });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) return [];
-  return window.XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName], {
-    header: 1,
-    raw: false,
-    dateNF: "yyyy. mm. dd hh:mm:ss",
-    defval: "",
+  const sheets = workbook.SheetNames.map((name) => {
+    const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: "" });
+    const header = rows.find((row) => row.some((value) => normalizeHeader(value) === "날짜"));
+    const dateColumn = header ? header.findIndex((value) => normalizeHeader(value) === "날짜") : 0;
+    // Excel dates are wall-clock serials, not UTC instants. Formatted cell text
+    // can omit the time even when the underlying value includes it.
+    return rows.map((row) => row.map((value, index) => {
+      if (index !== dateColumn || typeof value !== "number" || value <= 20000) return value;
+      const serial = value + (workbook.Workbook?.WBProps?.date1904 ? 1462 : 0);
+      const moment = parseLedgerMoment(serial);
+      return `${moment.date} ${moment.time}:00`;
+    }));
   });
+  return sheets.find((rows) => structuredLedgerRows(rows)) || sheets[0] || [];
 }
 
 function rowsToTsv(rows) {
@@ -2391,7 +2602,7 @@ async function runServerLedgerFileImport(file) {
     els.ledgerText.value = data.text || "";
     const parsed = parseStructuredRows(data.rows || []);
     const added = importExpenses(parsed);
-    els.importHint.textContent = added ? `${file.name}에서 ${added}건을 추가했습니다.` : `${file.name}에서 정산 후보를 찾지 못했습니다.`;
+    els.importHint.textContent = importResultMessage(parsed, added, file.name);
   } catch (error) {
     els.importHint.textContent = "파일을 읽지 못했습니다. .xlsx, .csv, .tsv 형식인지 확인하세요.";
     console.error(error);
@@ -2689,17 +2900,32 @@ function bindEvents() {
   });
   [els.jpyRate, els.usdRate, els.thbRate, els.vndRate, els.cnyRate, els.eurRate].forEach((input) => {
     input.addEventListener("input", () => {
+      if (!(Number(input.value) > 0)) return;
+      rateRequestId += 1;
+      ratesLoading = false;
+      rateMessage = "";
+      state.rateMode = "manual";
       state.rates.JPY = Number(els.jpyRate.value) || state.rates.JPY;
       state.rates.USD = Number(els.usdRate.value) || state.rates.USD;
       state.rates.THB = Number(els.thbRate.value) || state.rates.THB;
       state.rates.VND = Number(els.vndRate.value) || state.rates.VND;
       state.rates.CNY = Number(els.cnyRate.value) || state.rates.CNY;
       state.rates.EUR = Number(els.eurRate.value) || state.rates.EUR;
+      renderRateStatus();
       renderExpenses();
       renderResults();
       saveState();
     });
   });
+  els.rateMode.addEventListener("change", () => {
+    rateRequestId += 1;
+    ratesLoading = false;
+    rateMessage = "";
+    state.rateMode = els.rateMode.value;
+    render();
+    if (state.rateMode !== "manual") void refreshExchangeRates();
+  });
+  els.refreshRatesButton.addEventListener("click", refreshExchangeRates);
   [els.accountBank, els.accountNumber, els.accountHolder].forEach((input) => {
     input.addEventListener("input", updateAccount);
   });
@@ -2834,12 +3060,9 @@ function bindEvents() {
   });
   els.ledgerFileInput.addEventListener("change", runLedgerFileImport);
   els.parseTextButton.addEventListener("click", () => {
-    const baseParsed = parseLedgerText(els.ledgerText.value);
-    const krwFallback = extractKrwFallbackExpenses(els.ledgerText.value);
-    const parsed = mergeParsedExpenses([...baseParsed, ...krwFallback]);
+    const parsed = mergeParsedExpenses(parseLedgerText(els.ledgerText.value));
     const added = importExpenses(parsed);
-    const reviewCount = parsed.filter((item) => item.review).length;
-    els.importHint.textContent = added ? `${added}건을 분석해 추가했습니다.${reviewCount ? ` ${reviewCount}건은 확인 필요입니다.` : ""}` : "정산 후보를 찾지 못했습니다.";
+    els.importHint.textContent = importResultMessage(parsed, added);
   });
   els.clearTextButton.addEventListener("click", () => {
     els.ledgerText.value = "";
@@ -2853,6 +3076,7 @@ async function initializeApp() {
   setToday();
   els.expenseCurrency.value = state.settlementCurrency;
   render();
+  if (state.rateMode === "latest" && !state.rateSnapshot) void refreshExchangeRates();
 }
 
 initializeApp().catch((error) => {
